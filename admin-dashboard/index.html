@@ -10,7 +10,7 @@
     <meta name="supabase-url" content="https://qffpfgrktxucmkoylhnx.supabase.co" />
     <meta name="supabase-anon-key" content="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmZnBmZ3JrdHh1Y21rb3lsaG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NDAyMzUsImV4cCI6MjA3OTAxNjIzNX0.1whCRqVwqvpqf497zMxUbSHWwQ_LpACteNPcjKGhD6M" />
 
-    <link rel="stylesheet" href="./assets/styles.css" />
+    <link rel="stylesheet" href="./assets/styles.css?v=__BUILD_ID__" />
     <link rel="icon" href="./assets/favicon.svg" />
   </head>
   <body>
@@ -71,8 +71,10 @@
       </main>
     </div>
 
+    <div class="build-badge" id="buildBadge">build __BUILD_ID__</div>
+
     <!-- Login overlay (single-page) -->
-    <div class="overlay" id="loginOverlay" hidden>
+    <div class="overlay" id="loginOverlay">
       <div class="card card-lg">
         <div class="card-header">
           <div class="card-title">Sign in</div>
@@ -96,25 +98,9 @@
       </div>
     </div>
 
-    <!-- Access denied overlay -->
-    <div class="overlay" id="deniedOverlay" hidden>
-      <div class="card card-lg">
-        <div class="card-header">
-          <div class="card-title">Access restricted</div>
-          <div class="card-sub">Your account doesn’t have staff access.</div>
-        </div>
-        <div class="card-body">
-          <p class="p">
-            Ask an admin to set your <code>profiles.role</code> to <code>admin</code> or <code>staff</code>.
-          </p>
-          <button class="btn btn-primary" id="deniedSignOutBtn" type="button">Back to login</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Supabase JS (UMD) -->
-    <script src="./assets/env.js"></script>
+    <script src="./assets/env.js?v=__BUILD_ID__"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
-    <script type="module" src="./assets/app.js"></script>
+    <script type="module" src="./assets/app.js?v=__BUILD_ID__"></script>
   </body>
 </html>

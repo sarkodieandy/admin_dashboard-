@@ -11,6 +11,13 @@ import { renderDeliverySettings } from "./pages/delivery-settings.js";
 import { renderStaff } from "./pages/staff.js";
 import { renderSettings } from "./pages/settings.js";
 
+const DEBUG = true;
+function dbg(msg, data) {
+  if (!DEBUG) return;
+  // eslint-disable-next-line no-console
+  console.debug(`[admin] ${msg}`, data ?? "");
+}
+
 let supabase = null;
 try {
   supabase = createSupabase();
@@ -43,12 +50,13 @@ const sidebar = document.getElementById("sidebar");
 const menuBtn = document.getElementById("menuBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const loginOverlay = document.getElementById("loginOverlay");
-const deniedOverlay = document.getElementById("deniedOverlay");
-const deniedSignOutBtn = document.getElementById("deniedSignOutBtn");
 const meName = document.getElementById("meName");
 const meRole = document.getElementById("meRole");
 
 const allowedRoles = new Set(["admin", "staff"]);
+
+let cachedUser = null;
+let cachedProfile = null;
 
 const pages = {
   "/dashboard": renderDashboard,
@@ -90,53 +98,66 @@ function setActiveNav(route) {
 async function fetchProfile(userId) {
   const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
-  return data;
+  return data ?? null;
 }
 
 function showLogin(show) {
+  if (!loginOverlay) return;
   loginOverlay.hidden = !show;
-}
-
-function showDenied(show) {
-  deniedOverlay.hidden = !show;
 }
 
 async function ensureAuthed() {
   if (!supabase) return { ok: false, user: null, profile: null };
 
-  // Always show login first (per request). We only proceed after an explicit sign-in.
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
-  if (!user) return { ok: false, user: null, profile: null };
-
-  const profile = await fetchProfile(user.id);
-  if (!profile?.role || !allowedRoles.has(profile.role)) {
-    // Not staff/admin: sign out and require login.
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // ignore
+  try {
+    if (cachedUser && cachedProfile) {
+      return { ok: true, user: cachedUser, profile: cachedProfile, reason: "cached" };
     }
-    return { ok: false, user: null, profile: null };
-  }
 
-  return { ok: true, user, profile };
+    // Prefer local session (more reliable on mobile) over getUser() network call.
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    const session = sessionData.session;
+    const user = session?.user ?? null;
+    if (!user) {
+      dbg("ensureAuthed:no_session");
+      return { ok: false, user: null, profile: null, reason: "no_session" };
+    }
+
+    dbg("ensureAuthed:session_ok", { userId: user.id, email: user.email });
+
+    const profile = await fetchProfile(user.id);
+    if (!profile?.role || !allowedRoles.has(profile.role)) {
+      dbg("ensureAuthed:not_staff", { role: profile?.role ?? null });
+      return { ok: false, user, profile, reason: "not_staff" };
+    }
+
+    cachedUser = user;
+    cachedProfile = profile;
+    dbg("ensureAuthed:ok", { role: profile.role });
+    return { ok: true, user, profile, reason: "ok" };
+  } catch (e) {
+    console.error("[auth] ensureAuthed failed", e);
+    toast.error("Auth error", e instanceof Error ? e.message : String(e));
+    return { ok: false, user: null, profile: null, reason: "auth_error" };
+  }
 }
 
 async function renderRoute(route) {
+  dbg("route:render", { route });
   const authed = await ensureAuthed();
   if (!authed.ok) {
-    meName.textContent = "Not signed in";
-    meRole.textContent = "—";
-    showDenied(false);
+    if (meName) meName.textContent = "Not signed in";
+    if (meRole) meRole.textContent = "—";
     showLogin(true);
-    view.innerHTML = "";
+    if (view) view.innerHTML = "";
+    dbg("route:block", { reason: authed.reason });
     return;
   }
 
-  meName.textContent = authed.profile?.name || authed.user?.email || "Signed in";
-  meRole.textContent = authed.profile?.role || "—";
-  showDenied(false);
+  if (meName) meName.textContent = authed.profile?.name || authed.user?.email || "Signed in";
+  if (meRole) meRole.textContent = authed.profile?.role || "—";
   showLogin(false);
 
   const title = routeTitles[route] || "Dashboard";
@@ -146,15 +167,17 @@ async function renderRoute(route) {
 
   const render = pages[route] || renderDashboard;
 
-  view.innerHTML = `<div class="card"><div class="card-content"><div class="p">Loading…</div></div></div>`;
+  if (view) view.innerHTML = `<div class="card"><div class="card-content"><div class="p">Loading…</div></div></div>`;
   try {
     const node = await render({ supabase, toast });
-    view.innerHTML = "";
-    view.appendChild(node);
+    if (view) {
+      view.innerHTML = "";
+      view.appendChild(node);
+    }
   } catch (e) {
     console.error("[route] render failed", e);
     toast.error("Load failed", e instanceof Error ? e.message : String(e));
-    view.innerHTML = `<div class="card"><div class="card-content"><div class="p">Failed to load.</div></div></div>`;
+    if (view) view.innerHTML = `<div class="card"><div class="card-content"><div class="p">Failed to load.</div></div></div>`;
   }
 }
 
@@ -171,18 +194,30 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   const btn = document.getElementById("loginBtn");
   btn?.setAttribute("disabled", "true");
   try {
+    dbg("login:submit", { email });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    // Confirm staff role before letting them in.
-    const { ok } = await ensureAuthed();
-    if (!ok) {
-      toast.error("Access restricted", "This account is not admin/staff.");
+
+    const authed = await ensureAuthed();
+    if (!authed.ok) {
+      dbg("login:blocked", { reason: authed.reason, role: authed.profile?.role ?? null });
+      if (authed.reason === "no_session") {
+        toast.error("Login failed", "Session not saved. Use Safari/Chrome (not in-app) and disable Private mode.");
+      } else {
+        toast.error("Access restricted", "This account is not admin/staff.");
+      }
       showLogin(true);
+      cachedUser = null;
+      cachedProfile = null;
+      await supabase.auth.signOut();
       return;
     }
+
     toast.success("Welcome back", "Signed in successfully.");
     showLogin(false);
+    // Hash might already be /dashboard; render explicitly to avoid no-op navigation.
     router.navigate("/dashboard");
+    await renderRoute("/dashboard");
   } catch (err) {
     console.error("[login] failed", err);
     toast.error("Sign in failed", err?.message || String(err));
@@ -197,29 +232,27 @@ async function signOut() {
   } catch {
     // ignore
   } finally {
-    showDenied(false);
+    cachedUser = null;
+    cachedProfile = null;
     showLogin(true);
-    view.innerHTML = "";
+    if (view) view.innerHTML = "";
   }
 }
 
 signOutBtn?.addEventListener("click", signOut);
-deniedSignOutBtn?.addEventListener("click", signOut);
 
 // React to auth changes (e.g. refreshed tokens)
 if (supabase) {
   supabase.auth.onAuthStateChange((_evt) => {
-    // Re-render current route, letting ensureAuthed drive overlays.
-    renderRoute(router.current());
+    dbg("auth:event", { evt: _evt });
   });
 }
 
 if (supabase) {
   // Always start on login overlay.
-  showDenied(false);
   showLogin(true);
-  meName.textContent = "Not signed in";
-  meRole.textContent = "—";
+  if (meName) meName.textContent = "Not signed in";
+  if (meRole) meRole.textContent = "—";
 
   router.start({
     defaultRoute: "/dashboard",

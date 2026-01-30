@@ -3,6 +3,7 @@ set -euo pipefail
 
 OUT_DIR="assets"
 OUT_FILE="$OUT_DIR/env.js"
+INDEX_FILE="index.html"
 
 mkdir -p "$OUT_DIR"
 
@@ -16,3 +17,9 @@ EOF
 
 echo "Wrote $OUT_FILE"
 
+# Cache-bust static assets by injecting a build id into index.html.
+BUILD_ID="${DEPLOY_ID:-${COMMIT_REF:-$(date +%s)}}"
+if [ -f "$INDEX_FILE" ]; then
+  perl -pi -e "s/__BUILD_ID__/$BUILD_ID/g" "$INDEX_FILE"
+  echo "Stamped $INDEX_FILE with BUILD_ID=$BUILD_ID"
+fi
