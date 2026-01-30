@@ -10,7 +10,7 @@ Static, multi-page admin dashboard for the existing Supabase backend (same DB as
    python3 -m http.server 4173
    # open http://localhost:4173/pages/login.html
    ```
-3) Deploy on GitHub Pages: set Pages source to `main` / root; entry page `pages/login.html`.
+3) Deploy on GitHub Pages: set Pages source to `main` / root; entry URL `https://<user>.github.io/<repo>/admin-dashboard/pages/login.html` (root `index.html` already redirects there).
 
 ## Structure
 ```
