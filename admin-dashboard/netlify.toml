@@ -7,3 +7,13 @@
   [headers.values]
     # Helpful for Supabase auth redirects and external assets.
     Content-Security-Policy = "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline'; style-src 'self' https: 'unsafe-inline'; connect-src 'self' https: wss:; img-src 'self' https: data: blob:; font-src 'self' https: data:; frame-ancestors 'self';"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
