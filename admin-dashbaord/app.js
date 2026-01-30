@@ -19,6 +19,9 @@ const state = {
   supabase: null,
   profile: null,
   active: "dashboard",
+  orders: [],
+  conversations: [],
+  notifications: [],
 };
 
 const toastEl = document.getElementById("toast");
@@ -192,8 +195,14 @@ function viewDashboard() {
       </div>
       <div id="recentOrders" class="mt-3 space-y-2"></div>
     </div>
+    <div class="card p-4 mt-3">
+      <div class="text-lg font-bold mb-2">Notifications</div>
+      <div id="notifList" class="space-y-2 text-sm"></div>
+    </div>
   `;
   fetchRecentOrders();
+  fetchAnalytics();
+  renderNotificationsList("notifList");
   return wrap;
 }
 
@@ -222,6 +231,38 @@ async function fetchRecentOrders() {
     .join("");
 }
 
+async function fetchAnalytics() {
+  if (!state.supabase) return;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const iso = today.toISOString();
+
+  const { data: todayOrders } = await state.supabase
+    .from("orders")
+    .select("total,status")
+    .gte("created_at", iso);
+  const ordersCount = todayOrders?.length || 0;
+  const revenue = todayOrders?.reduce((s, o) => s + Number(o.total || 0), 0) || 0;
+  const cancels = todayOrders?.filter((o) => o.status === "cancelled").length || 0;
+
+  const { data: openChats } = await state.supabase
+    .from("conversations")
+    .select("id")
+    .is("closed_at", null)
+    .limit(100);
+
+  const kpis = [
+    ordersCount.toString(),
+    `GH₵ ${revenue.toFixed(2)}`,
+    "—",
+    (openChats?.length || 0).toString(),
+  ];
+  kpis.forEach((val, i) => {
+    const el = document.getElementById(`kpi-${i}`);
+    if (el) el.textContent = val;
+  });
+}
+
 function viewOrders() {
   const wrap = document.createElement("div");
   wrap.innerHTML = `
@@ -238,6 +279,7 @@ function viewOrders() {
           <option value="ready">Ready</option>
           <option value="enroute">Out for delivery</option>
           <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
       <div id="ordersList" class="space-y-2"></div>
@@ -260,6 +302,7 @@ async function fetchOrders(status) {
     list.innerHTML = `<div class="text-red-500 text-sm">${error.message}</div>`;
     return;
   }
+  state.orders = data || [];
   list.innerHTML = data
     .map(
       (o) => `
@@ -319,6 +362,7 @@ async function fetchChats() {
     list.innerHTML = `<div class="text-red-500 text-sm">${error.message}</div>`;
     return;
   }
+  state.conversations = data || [];
   list.innerHTML = data
     .map(
       (c) => `
@@ -565,6 +609,78 @@ function placeholder(id) {
   return div;
 }
 
+async function setupRealtime() {
+  if (!state.supabase) return;
+  const channel = state.supabase
+    .channel("admin-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "orders" },
+      () => {
+        fetchOrders(document.getElementById("ordersFilter")?.value || "");
+        fetchRecentOrders();
+        fetchAnalytics();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages" },
+      () => {
+        const active = document.getElementById("chatThread")?.dataset.active;
+        if (active) openConversation(active);
+        fetchChats();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "staff_notifications" },
+      fetchNotifications
+    )
+    .subscribe((status) => dbg("realtime:status", status));
+}
+
+async function fetchNotifications() {
+  const { data, error } = await state.supabase
+    .from("staff_notifications")
+    .select("id,title,body,is_read,created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    dbg("notif:error", error.message);
+    return;
+  }
+  state.notifications = data || [];
+  renderNotificationsList("notifList");
+  renderNotifBadge();
+}
+
+function renderNotificationsList(elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!state.notifications.length) {
+    el.innerHTML = `<div class="text-sm text-slate-500">No notifications</div>`;
+    return;
+  }
+  el.innerHTML = state.notifications
+    .map(
+      (n) => `
+        <div class="border border-surface-200 dark:border-white/10 rounded-lg px-3 py-2">
+          <div class="flex justify-between text-xs text-slate-500"><span>${new Date(n.created_at).toLocaleString()}</span>${n.is_read ? "" : "<span class='text-brand-700'>●</span>"}</div>
+          <div class="font-semibold">${n.title || "Notification"}</div>
+          <div class="text-sm text-slate-500">${n.body || ""}</div>
+        </div>`
+    )
+    .join("");
+}
+
+function renderNotifBadge() {
+  const btn = document.getElementById("notifBtn");
+  const unread = state.notifications.filter((n) => !n.is_read).length;
+  btn?.setAttribute("data-badge", unread ? unread.toString() : "");
+  if (unread) btn.classList.add("relative");
+  else btn?.classList.remove("relative");
+}
+
 async function bootstrap() {
   dbg("boot:start");
   initSupabase();
@@ -574,6 +690,8 @@ async function bootstrap() {
   setRoute(hash || "dashboard");
   await requireStaff(); // will show login if not authed
   renderContent();
+  await fetchNotifications();
+  await setupRealtime();
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
