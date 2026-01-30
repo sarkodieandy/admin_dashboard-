@@ -103,48 +103,41 @@ function showDenied(show) {
 
 async function ensureAuthed() {
   if (!supabase) return { ok: false, user: null, profile: null };
+
+  // Always show login first (per request). We only proceed after an explicit sign-in.
   const { data } = await supabase.auth.getUser();
   const user = data.user;
-  if (!user) {
-    meName.textContent = "Not signed in";
-    meRole.textContent = "—";
-    showDenied(false);
-    showLogin(true);
-    return { ok: false, user: null, profile: null };
-  }
+  if (!user) return { ok: false, user: null, profile: null };
 
   const profile = await fetchProfile(user.id);
-  meName.textContent = profile?.name || user.email || "Signed in";
-  meRole.textContent = profile?.role || "—";
-
   if (!profile?.role || !allowedRoles.has(profile.role)) {
-    // Avoid confusing "Access restricted" loops on shared devices / stale sessions.
-    // Sign the user out and show the login screen so they can use a staff account.
+    // Not staff/admin: sign out and require login.
     try {
       await supabase.auth.signOut();
     } catch {
       // ignore
     }
-    meName.textContent = "Not signed in";
-    meRole.textContent = "—";
-    showDenied(false);
-    showLogin(true);
-    toast.error("Access restricted", "Sign in with an admin/staff account.");
     return { ok: false, user: null, profile: null };
   }
 
-  showLogin(false);
-  showDenied(false);
   return { ok: true, user, profile };
 }
 
 async function renderRoute(route) {
   const authed = await ensureAuthed();
   if (!authed.ok) {
-    // If denied, keep them on current hash but block view render.
+    meName.textContent = "Not signed in";
+    meRole.textContent = "—";
+    showDenied(false);
+    showLogin(true);
     view.innerHTML = "";
     return;
   }
+
+  meName.textContent = authed.profile?.name || authed.user?.email || "Signed in";
+  meRole.textContent = authed.profile?.role || "—";
+  showDenied(false);
+  showLogin(false);
 
   const title = routeTitles[route] || "Dashboard";
   crumbs.textContent = title;
@@ -180,7 +173,15 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   try {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // Confirm staff role before letting them in.
+    const { ok } = await ensureAuthed();
+    if (!ok) {
+      toast.error("Access restricted", "This account is not admin/staff.");
+      showLogin(true);
+      return;
+    }
     toast.success("Welcome back", "Signed in successfully.");
+    showLogin(false);
     router.navigate("/dashboard");
   } catch (err) {
     console.error("[login] failed", err);
@@ -198,7 +199,7 @@ async function signOut() {
   } finally {
     showDenied(false);
     showLogin(true);
-    router.navigate("/dashboard");
+    view.innerHTML = "";
   }
 }
 
@@ -214,6 +215,12 @@ if (supabase) {
 }
 
 if (supabase) {
+  // Always start on login overlay.
+  showDenied(false);
+  showLogin(true);
+  meName.textContent = "Not signed in";
+  meRole.textContent = "—";
+
   router.start({
     defaultRoute: "/dashboard",
     onRoute: (route) => renderRoute(route),
