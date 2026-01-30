@@ -55,10 +55,38 @@ export async function fetchMenu() {
   const cats = await supabase.from("categories").select("id,name,is_active,sort_order").order("sort_order", { ascending: true });
   const items = await supabase
     .from("menu_items")
-    .select("id,name,base_price,description,is_active,is_sold_out,category_id,spice_level")
+    .select("id,name,base_price,description,is_active,is_sold_out,category_id,spice_level,image_url")
     .order("created_at", { ascending: false })
     .limit(200);
   return { cats, items };
+}
+
+export async function updateMenuItem(id, payload) {
+  return supabase.from("menu_items").update(payload).eq("id", id);
+}
+
+export async function insertMenuItem(payload) {
+  return supabase.from("menu_items").insert(payload);
+}
+
+export async function insertCategory(name, sort_order = 0) {
+  return supabase.from("categories").insert({ name, sort_order, is_active: true });
+}
+
+export async function updateCategory(id, payload) {
+  return supabase.from("categories").update(payload).eq("id", id);
+}
+
+export async function fetchAddons() {
+  return supabase.from("item_addons").select("id,item_id,name,price,created_at").order("created_at", { ascending: false }).limit(200);
+}
+
+export async function insertAddon({ item_id, name, price }) {
+  return supabase.from("item_addons").insert({ item_id, name, price });
+}
+
+export async function deleteAddon(id) {
+  return supabase.from("item_addons").delete().eq("id", id);
 }
 
 export async function fetchChats(limit = 50) {
