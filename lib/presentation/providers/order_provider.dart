@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/utils/app_logger.dart';
 import '../../domain/entities/address.dart';
 import '../../domain/entities/cart_line.dart';
 import '../../domain/entities/order.dart';
@@ -63,8 +64,9 @@ class OrderProvider extends ChangeNotifier {
       _orders = items;
       _offset = items.length;
       _hasMore = items.length >= 20;
-    } catch (e) {
-      _error = e.toString();
+    } catch (error, stackTrace) {
+      AppLogger.e('orders_refresh_failed', tag: 'orders', error: error, stackTrace: stackTrace);
+      _error = error.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -85,8 +87,9 @@ class OrderProvider extends ChangeNotifier {
       _orders = [..._orders, ...next];
       _offset += next.length;
       _hasMore = next.length >= 20;
-    } catch (e) {
-      _error = e.toString();
+    } catch (error, stackTrace) {
+      AppLogger.e('orders_load_more_failed', tag: 'orders', error: error, stackTrace: stackTrace);
+      _error = error.toString();
     } finally {
       _isLoadingMore = false;
       notifyListeners();
@@ -114,6 +117,10 @@ class OrderProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      AppLogger.i(
+        'place_order_start method=${paymentMethod.name} status=${paymentStatus.name} scheduled=${scheduledFor != null}',
+        tag: 'orders',
+      );
       final order = await _repository.createOrder(
         userId: userId,
         paymentMethod: paymentMethod,
@@ -155,9 +162,11 @@ class OrderProvider extends ChangeNotifier {
       _orders = [order, ..._orders];
       _offset += 1;
       notifyListeners();
+      AppLogger.i('place_order_ok orderId=${order.id}', tag: 'orders');
       return order;
-    } catch (e) {
-      _placeError = e.toString();
+    } catch (error, stackTrace) {
+      AppLogger.e('place_order_failed', tag: 'orders', error: error, stackTrace: stackTrace);
+      _placeError = error.toString();
       notifyListeners();
       return null;
     } finally {
@@ -186,6 +195,7 @@ class OrderProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      AppLogger.i('paystack_finalize_start reference=$reference scheduled=${scheduledFor != null}', tag: 'orders');
       final order = await _repository.createPaidOrderFromPaystack(
         reference: reference,
         userId: userId,
@@ -226,9 +236,16 @@ class OrderProvider extends ChangeNotifier {
       _orders = [order, ..._orders];
       _offset += 1;
       notifyListeners();
+      AppLogger.i('paystack_finalize_ok orderId=${order.id} reference=$reference', tag: 'orders');
       return order;
-    } catch (e) {
-      _placeError = e.toString();
+    } catch (error, stackTrace) {
+      AppLogger.e(
+        'paystack_finalize_failed reference=$reference',
+        tag: 'orders',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _placeError = error.toString();
       notifyListeners();
       return null;
     } finally {

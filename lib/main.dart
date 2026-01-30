@@ -12,19 +12,32 @@ Future<void> main() async {
 
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    AppLogger.e('flutter_error', tag: 'error', error: details.exception, stackTrace: details.stack);
+    AppLogger.e(
+      'flutter_error',
+      tag: 'error',
+      error: details.exception,
+      stackTrace: details.stack,
+    );
   };
 
-  await runZonedGuarded(() async {
-    if (AppEnv.isSupabaseConfigured) {
-      await Supabase.initialize(
-        url: AppEnv.supabaseUrl,
-        anonKey: AppEnv.supabaseAnonKey,
-      );
-    }
+  await runZonedGuarded(
+    () async {
+      if (AppEnv.isSupabaseConfigured) {
+        await Supabase.initialize(
+          url: AppEnv.supabaseUrl,
+          anonKey: AppEnv.supabaseAnonKey,
+        );
+      }
 
-    runApp(App(isSupabaseConfigured: AppEnv.isSupabaseConfigured));
-  }, (error, stackTrace) {
-    AppLogger.e('uncaught_zone_error', tag: 'error', error: error, stackTrace: stackTrace);
-  });
+      runApp(App(isSupabaseConfigured: AppEnv.isSupabaseConfigured));
+    },
+    (error, stackTrace) {
+      AppLogger.e(
+        'uncaught_zone_error',
+        tag: 'error',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    },
+  );
 }

@@ -61,9 +61,13 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   Future<void> _send() async {
-    final text = _controller.text;
-    _controller.clear();
-    await context.read<ChatProvider>().send(text);
+    final raw = _controller.text;
+    final text = raw.trim();
+    if (text.isEmpty) return;
+
+    final ok = await context.read<ChatProvider>().send(text);
+    if (!mounted) return;
+    if (ok) _controller.clear();
   }
 
   @override

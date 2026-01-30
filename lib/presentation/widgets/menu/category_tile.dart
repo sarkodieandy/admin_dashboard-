@@ -19,7 +19,7 @@ class CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final iconUrl = _iconUrlFor(category.name);
+    final imageUrl = _imageUrlFor(category.name);
     final hint = _hintFor(category.name);
 
     return InkWell(
@@ -48,23 +48,33 @@ class CategoryTile extends StatelessWidget {
                 width: 40,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppRadius.r12),
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primaryContainer,
-                      theme.colorScheme.tertiaryContainer,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: theme.colorScheme.surfaceContainerHighest,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(7),
-                  child: AppNetworkImage(
-                    url: iconUrl,
-                    height: 26,
-                    width: 26,
-                    fit: BoxFit.contain,
-                    borderRadius: 0,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.r12),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AppNetworkImage(
+                        url: imageUrl,
+                        height: 40,
+                        width: 40,
+                        fit: BoxFit.cover,
+                        borderRadius: 0,
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.00),
+                              Colors.black.withValues(alpha: 0.18),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -95,18 +105,35 @@ class CategoryTile extends StatelessWidget {
     );
   }
 
-  String _iconUrlFor(String name) {
+  String _imageUrlFor(String name) {
     final n = name.toLowerCase();
-    const base = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72';
-    if (n.contains('drink')) return '$base/1f964.png';
-    if (n.contains('dessert')) return '$base/1f370.png';
-    if (n.contains('wrap') || n.contains('shawarma')) return '$base/1f959.png';
-    if (n.contains('swallow') || n.contains('soup')) return '$base/1f35c.png';
-    if (n.contains('grill') || n.contains('chicken')) return '$base/1f357.png';
-    if (n.contains('side')) return '$base/1f35f.png';
-    if (n.contains('jollof') || n.contains('rice')) return '$base/1f35b.png';
-    if (n.contains('local')) return '$base/1f37d.png';
-    return '$base/1f372.png';
+    // Real photos for a nicer UI (stable, cached by the CDN).
+    // Note: Keep these lightweight (w=256) since they are used as small thumbnails.
+    if (n.contains('drink')) {
+      return 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('dessert')) {
+      return 'https://images.unsplash.com/photo-1505253216365-03599a2dc57b?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('wrap') || n.contains('shawarma')) {
+      return 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('swallow') || n.contains('soup')) {
+      return 'https://images.unsplash.com/photo-1604908176997-125f25cc500f?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('grill') || n.contains('chicken')) {
+      return 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('side')) {
+      return 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('jollof') || n.contains('rice')) {
+      return 'https://images.unsplash.com/photo-1604908554100-279b9fba6c14?auto=format&fit=crop&w=256&q=80';
+    }
+    if (n.contains('local')) {
+      return 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=256&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=256&q=80';
   }
 
   String _hintFor(String name) {

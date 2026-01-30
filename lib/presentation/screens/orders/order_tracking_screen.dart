@@ -20,6 +20,7 @@ import '../../providers/cart_provider.dart';
 import '../cart/cart_screen.dart';
 import '../chat/order_chat_screen.dart';
 import '../reviews/order_review_screen.dart';
+import 'orders_screen.dart';
 
 class OrderTrackingScreen extends StatelessWidget {
   const OrderTrackingScreen({super.key, required this.orderId});
@@ -42,6 +43,17 @@ class OrderTrackingScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Order tracking'),
+            leading: IconButton(
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                  return;
+                }
+                context.go(OrdersScreen.routePath);
+              },
+            ),
             actions: [
               IconButton(
                 tooltip: 'Chat',

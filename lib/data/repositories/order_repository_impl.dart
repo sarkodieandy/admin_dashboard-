@@ -69,6 +69,7 @@ class OrderRepositoryImpl implements OrderRepository {
   }) async {
     final model = await _datasource.createPaidOrderFromPaystack(
       reference: reference,
+      userId: userId,
       subtotal: subtotal,
       deliveryFee: deliveryFee,
       discount: discount,

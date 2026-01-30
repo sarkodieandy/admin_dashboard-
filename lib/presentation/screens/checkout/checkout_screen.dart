@@ -648,7 +648,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         await cartProvider.clear();
 
                         if (!mounted) return;
-                        router.go(OrderTrackingScreen.routePathFor(order.id));
+                        router.pushReplacement(OrderTrackingScreen.routePathFor(order.id));
                       } catch (error, stackTrace) {
                         AppLogger.e(
                           'paystack_checkout_failed',
@@ -684,7 +684,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     await cartProvider.clear();
 
                     if (!mounted) return;
-                    router.go(OrderTrackingScreen.routePathFor(order.id));
+                    router.pushReplacement(OrderTrackingScreen.routePathFor(order.id));
                   },
             child: orders.isPlacingOrder
                 ? const SizedBox(

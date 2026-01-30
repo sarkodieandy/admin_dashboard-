@@ -318,13 +318,18 @@ class _MenuItemDetailScreenState extends State<MenuItemDetailScreen> {
                             );
 
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            final messenger = ScaffoldMessenger.of(context);
+                            messenger.hideCurrentSnackBar();
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: const Text('Added to cart'),
+                                duration: const Duration(milliseconds: 1200),
                                 action: SnackBarAction(
                                   label: AppStrings.cart,
-                                  onPressed: () =>
-                                      context.push(CartScreen.routePath),
+                                  onPressed: () {
+                                    messenger.hideCurrentSnackBar();
+                                    context.push(CartScreen.routePath);
+                                  },
                                 ),
                               ),
                             );

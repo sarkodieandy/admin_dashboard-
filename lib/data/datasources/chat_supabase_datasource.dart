@@ -29,6 +29,7 @@ class ChatSupabaseDatasource {
         .select('id,chat_id,sender_id,message,created_at')
         .eq('chat_id', chatId)
         .order('created_at', ascending: true)
+        .order('id', ascending: true)
         .range(offset, offset + limit - 1);
 
     return (data as List).whereType<Map<String, dynamic>>().map(ChatMessageModel.fromJson).toList();
@@ -40,6 +41,7 @@ class ChatSupabaseDatasource {
         .stream(primaryKey: ['id'])
         .eq('chat_id', chatId)
         .order('created_at', ascending: true)
+        .order('id', ascending: true)
         .map(
           (rows) => rows.whereType<Map<String, dynamic>>().map(ChatMessageModel.fromJson).toList(),
         );
@@ -57,4 +59,3 @@ class ChatSupabaseDatasource {
     });
   }
 }
-
