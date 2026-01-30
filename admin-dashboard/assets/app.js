@@ -12,15 +12,38 @@ import { renderStaff } from "./pages/staff.js";
 import { renderSettings } from "./pages/settings.js";
 
 const DEBUG = true;
+const debugPanel = document.getElementById("debugPanel");
 function dbg(msg, data) {
   if (!DEBUG) return;
   // eslint-disable-next-line no-console
-  console.debug(`[admin] ${msg}`, data ?? "");
+  console.log(`[admin] ${msg}`, data ?? "");
+
+  if (!debugPanel) return;
+  debugPanel.hidden = false;
+  const line = document.createElement("div");
+  line.className = "debug-line";
+  const payload = data == null ? "" : ` ${safeJson(data)}`;
+  line.textContent = `[admin] ${msg}${payload}`;
+  debugPanel.appendChild(line);
+  // keep last 40 lines
+  while (debugPanel.childNodes.length > 40) {
+    debugPanel.removeChild(debugPanel.firstChild);
+  }
+  debugPanel.scrollTop = debugPanel.scrollHeight;
+}
+
+function safeJson(v) {
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
 }
 
 let supabase = null;
 try {
   supabase = createSupabase();
+  dbg("boot:supabase_client_created");
 } catch (e) {
   console.error("[config] Supabase config missing/invalid", e);
   const overlay = document.getElementById("loginOverlay");
@@ -195,8 +218,18 @@ document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
   btn?.setAttribute("disabled", "true");
   try {
     dbg("login:submit", { email });
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+
+    // Use returned session immediately (more reliable on iOS).
+    const session = data?.session;
+    const user = session?.user;
+    if (user) {
+      const profile = await fetchProfile(user.id);
+      cachedUser = user;
+      cachedProfile = profile;
+      dbg("login:session_cached", { role: profile?.role ?? null });
+    }
 
     const authed = await ensureAuthed();
     if (!authed.ok) {
@@ -254,6 +287,7 @@ if (supabase) {
   if (meName) meName.textContent = "Not signed in";
   if (meRole) meRole.textContent = "—";
 
+  dbg("boot:router_start", { route: router.current?.() ?? null, hash: window.location.hash });
   router.start({
     defaultRoute: "/dashboard",
     onRoute: (route) => renderRoute(route),
