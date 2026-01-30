@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finger Licking – Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/reset.css" />
+    <link rel="stylesheet" href="css/variables.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/dashboard.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="sidebar__header">
+          <div class="sidebar__brand">
+            <div class="brand-mark__logo brand-mark__logo--sm" aria-hidden="true">
+              <img src="assets/icons/flame.svg" alt="" />
+            </div>
+            <div>
+              <div class="sidebar__title">Finger Licking</div>
+              <div class="sidebar__subtitle" id="sidebarSubtitle">Admin</div>
+            </div>
+          </div>
+          <button id="logoutBtn" class="btn btn--ghost btn--sm" title="Logout">
+            Logout
+          </button>
+        </div>
+
+        <nav class="sidebar__nav" aria-label="Admin navigation">
+          <a href="#overview" class="nav-item is-active" data-nav="overview">
+            <div class="nav-item__label">
+              <strong>Overview</strong>
+              <span>Today at a glance</span>
+            </div>
+          </a>
+          <a href="#orders" class="nav-item" data-nav="orders">
+            <div class="nav-item__label">
+              <strong>Orders</strong>
+              <span>Manage & update status</span>
+            </div>
+            <span class="badge badge--confirmed" id="newOrderBadge" hidden>New</span>
+          </a>
+          <a href="#menu" class="nav-item" data-nav="menu">
+            <div class="nav-item__label">
+              <strong>Menu</strong>
+              <span>Items, variants, add-ons</span>
+            </div>
+          </a>
+          <a href="#promos" class="nav-item" data-nav="promos">
+            <div class="nav-item__label">
+              <strong>Promos</strong>
+              <span>Codes & discounts</span>
+            </div>
+          </a>
+          <a href="#riders" class="nav-item" data-nav="riders">
+            <div class="nav-item__label">
+              <strong>Riders</strong>
+              <span>Future-ready</span>
+            </div>
+          </a>
+          <a href="#analytics" class="nav-item" data-nav="analytics">
+            <div class="nav-item__label">
+              <strong>Analytics</strong>
+              <span>Sales & trends</span>
+            </div>
+          </a>
+        </nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar__title">
+            <h2 id="pageTitle">Overview</h2>
+            <p id="pageSubtitle">Today at a glance — orders, revenue, and what’s cooking.</p>
+          </div>
+          <div class="topbar__actions">
+            <span class="chip" id="sessionChip" hidden></span>
+            <button id="refreshBtn" class="btn btn--ghost btn--sm" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <main class="content">
+          <section id="view-overview" data-view="overview"></section>
+          <section id="view-orders" data-view="orders" hidden></section>
+          <section id="view-menu" data-view="menu" hidden></section>
+          <section id="view-promos" data-view="promos" hidden></section>
+          <section id="view-riders" data-view="riders" hidden></section>
+          <section id="view-analytics" data-view="analytics" hidden></section>
+        </main>
+      </div>
+    </div>
+
+        <div id="drawerHost" class="drawer-backdrop" aria-hidden="true">
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="Details drawer">
+        <div class="drawer__header">
+          <div>
+            <h3 id="drawerTitle">Details</h3>
+            <p id="drawerSubtitle" class="muted mt-2"></p>
+          </div>
+          <button id="drawerCloseBtn" class="btn btn--ghost btn--sm" type="button" title="Close">
+            Close <span class="kbd">Esc</span>
+          </button>
+        </div>
+        <div id="drawerContent" class="drawer__content"></div>
+        <div id="drawerFooter" class="drawer__footer"></div>
+      </aside>
+    </div>
+
+    <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
+
+    <script type="module" src="js/admin/adminDashboard.js"></script>
+  </body>
+</html>
