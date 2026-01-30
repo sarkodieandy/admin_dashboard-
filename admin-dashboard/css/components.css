@@ -89,3 +89,99 @@
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }
 }
+
+.tabs {
+  display: inline-flex;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+}
+.tab {
+  border: 0;
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.tab.active {
+  background: white;
+  color: var(--color-text);
+  box-shadow: var(--color-shadow-soft);
+}
+
+.pill {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 120ms ease;
+}
+.pill.active { background: #e0f2fe; border-color: #7dd3fc; color: #075985; }
+
+.drawer {
+  position: fixed;
+  top: 0; right: -480px;
+  width: 420px;
+  height: 100vh;
+  background: #f8fafc;
+  border-left: 1px solid var(--color-border);
+  box-shadow: -8px 0 30px rgba(15, 23, 42, 0.18);
+  transition: right 180ms ease;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+.drawer.show { right: 0; }
+.drawer header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.drawer .content {
+  padding: 18px 20px;
+  overflow-y: auto;
+  gap: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.tag {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  border: 1px solid var(--color-border);
+}
+.tag.success { color: #166534; background: #ecfdf3; border-color: #bbf7d0; }
+.tag.warning { color: #854d0e; background: #fef9c3; border-color: #fcd34d; }
+.tag.info { color: #0ea5e9; background: #e0f2fe; border-color: #7dd3fc; }
+.tag.danger { color: #b91c1c; background: #fee2e2; border-color: #fecdd3; }
+
+.chip-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: white;
+  cursor: pointer;
+}
+.chip-btn.active { background: #0ea5e9; border-color: #0ea5e9; color: white; }
+
+.badge-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #16a34a;
+}

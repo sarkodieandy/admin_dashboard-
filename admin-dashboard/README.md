@@ -47,8 +47,8 @@ admin-dashboard/
 ## Features (wired to Supabase)
 - Auth (email/password via Supabase). Requires `profiles.role` ∈ {admin, staff, owner}.
 - Dashboard: KPIs, recent orders, orders-by-hour chart.
-- Orders: list with status filter (placed/confirmed/preparing/ready/en_route/delivered/cancelled).
-- Chats: conversations + messages, send message (order-based), order context note.
+- Orders: full operational console with tabs (Inbox/Kitchen/Dispatch/Reports), filters, CSV export, realtime new-order toast, status actions + timeline drawer, chat per order.
+- Chats: conversations from `chats`/`chat_messages`, realtime updates, compose.
 - Menu: categories + items list (live from Supabase).
 - Delivery settings: load/save delivery_settings row.
 - Staff allowlist: add/list staff emails.

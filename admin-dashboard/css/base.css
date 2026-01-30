@@ -31,3 +31,4 @@ img { max-width: 100%; display: block; }
 .muted { color: var(--color-muted); }
 .shadow { box-shadow: var(--color-shadow); }
 .hidden { display: none !important; }
+.clickable { cursor: pointer; }

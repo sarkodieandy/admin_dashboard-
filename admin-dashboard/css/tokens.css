@@ -8,6 +8,7 @@
   --color-brand-strong: #16a34a;
   --color-danger: #ef4444;
   --color-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+  --color-shadow-soft: 0 6px 16px rgba(15, 23, 42, 0.12);
 
   --radius-sm: 10px;
   --radius-md: 14px;

@@ -58,11 +58,11 @@
         <div class="card" style="padding:14px;">
           <div class="flex-between">
             <div class="font-semibold">${m.name}</div>
-            <span class="badge">${m.is_available ? "Available" : "Sold out"}</span>
+            <span class="badge">${m.is_sold_out ? "Sold out" : (m.is_active ? "Available" : "Inactive")}</span>
           </div>
-          <div class="muted text-sm">${catMap.get(m.category_id) || "Uncategorized"} • ${m.featured ? "Featured" : "Standard"}</div>
+          <div class="muted text-sm">${catMap.get(m.category_id) || "Uncategorized"} • Spice ${m.spice_level ?? 0}</div>
           <div class="muted text-sm">${m.description || ""}</div>
-          <div class="font-bold" style="margin-top:6px;">${fmtMoney(m.price)}</div>
+          <div class="font-bold" style="margin-top:6px;">${fmtMoney(m.base_price)}</div>
         </div>
       `).join("");
     }
