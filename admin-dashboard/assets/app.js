@@ -118,9 +118,19 @@ async function ensureAuthed() {
   meRole.textContent = profile?.role || "—";
 
   if (!profile?.role || !allowedRoles.has(profile.role)) {
-    showLogin(false);
-    showDenied(true);
-    return { ok: false, user, profile };
+    // Avoid confusing "Access restricted" loops on shared devices / stale sessions.
+    // Sign the user out and show the login screen so they can use a staff account.
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    meName.textContent = "Not signed in";
+    meRole.textContent = "—";
+    showDenied(false);
+    showLogin(true);
+    toast.error("Access restricted", "Sign in with an admin/staff account.");
+    return { ok: false, user: null, profile: null };
   }
 
   showLogin(false);
