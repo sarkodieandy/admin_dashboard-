@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Menu</div>
+          <div class="muted" style="font-size: var(--text-sm)">Categories & Items</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="flex-between" style="margin-bottom: var(--space-3);">
+          <div class="muted text-sm">All items (live from Supabase)</div>
+          <button id="reloadMenu" class="btn ghost">Reload</button>
+        </div>
+        <div id="menuList" class="grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3);"></div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchMenu } from "../js/api.js";
+    import { fmtMoney } from "../js/utils.js";
+
+    renderSidebar("menu.html");
+    await requireAuth();
+    document.getElementById("reloadMenu").addEventListener("click", loadMenu);
+    loadMenu();
+
+    async function loadMenu() {
+      const list = document.getElementById("menuList");
+      list.innerHTML = `<div class="skeleton" style="height:120px; border-radius:var(--radius-md);"></div>`;
+      const { cats, items } = await fetchMenu();
+      if (cats.error) { list.innerHTML = `<div class="muted">Error: ${cats.error.message}</div>`; return; }
+      if (items.error) { list.innerHTML = `<div class="muted">Error: ${items.error.message}</div>`; return; }
+      const catMap = new Map((cats.data||[]).map(c=>[c.id,c.name]));
+      const data = items.data || [];
+      if (data.length === 0) { list.innerHTML = `<div class="muted">No menu items</div>`; return; }
+      list.innerHTML = data.map(m => `
+        <div class="card" style="padding:14px;">
+          <div class="flex-between">
+            <div class="font-semibold">${m.name}</div>
+            <span class="badge">${m.is_available ? "Available" : "Sold out"}</span>
+          </div>
+          <div class="muted text-sm">${catMap.get(m.category_id) || "Uncategorized"} • ${m.featured ? "Featured" : "Standard"}</div>
+          <div class="muted text-sm">${m.description || ""}</div>
+          <div class="font-bold" style="margin-top:6px;">${fmtMoney(m.price)}</div>
+        </div>
+      `).join("");
+    }
+  </script>
+</body>
+</html>

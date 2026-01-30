@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Analytics</div>
+          <div class="muted" style="font-size: var(--text-sm)">Revenue & orders</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Revenue (last 7 days)</div>
+          <canvas id="revChart" height="220"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    import { renderSidebar } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { createClient } from "../js/supabaseClient.js";
+
+    renderSidebar("analytics.html");
+    await requireAuth();
+    const supabase = createClient();
+
+    const today = new Date();
+    const start = new Date(today); start.setDate(start.getDate()-6); start.setHours(0,0,0,0);
+    const { data } = await supabase.from("orders").select("total,created_at").gte("created_at", start.toISOString());
+    const buckets = Array.from({length:7},(_,i)=>({d: new Date(start.getTime()+i*86400000), v:0}));
+    (data||[]).forEach(o=>{
+      const d = new Date(o.created_at);
+      const idx = Math.floor((d - start)/86400000);
+      if (idx>=0 && idx<buckets.length) buckets[idx].v += Number(o.total||0);
+    });
+    new Chart(document.getElementById("revChart"), {
+      type: "line",
+      data: { labels: buckets.map(b=>b.d.toLocaleDateString()), datasets:[{label:"Revenue", data:buckets.map(b=>b.v), borderColor:"#22c55e", fill:false}] },
+      options: { plugins:{legend:{display:false}}, tension:0.3, scales:{ y:{beginAtZero:true} } }
+    });
+  </script>
+</body>
+</html>

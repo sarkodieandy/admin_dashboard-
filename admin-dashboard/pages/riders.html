@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riders • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Riders</div>
+          <div class="muted" style="font-size: var(--text-sm)">Assignments overview</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Riders</div>
+          <table class="table" id="ridersTable">
+            <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Last seen</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    import { renderSidebar } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { createClient } from "../js/supabaseClient.js";
+    import { fmtDateTime } from "../js/utils.js";
+
+    renderSidebar("riders.html");
+    await requireAuth();
+    const supabase = createClient();
+    const tbody = document.querySelector("#ridersTable tbody");
+    load();
+
+    async function load() {
+      tbody.innerHTML = `<tr><td colspan="4"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await supabase.from("riders").select("name,phone,status,updated_at").limit(100);
+      if (error) { tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${error.message}</td></tr>`; return; }
+      if (!data || data.length===0) { tbody.innerHTML = `<tr><td colspan="4" class="muted">No riders</td></tr>`; return; }
+      tbody.innerHTML = data.map(r=>`
+        <tr>
+          <td>${r.name||"—"}</td>
+          <td>${r.phone||"—"}</td>
+          <td>${r.status||"—"}</td>
+          <td>${fmtDateTime(r.updated_at||"")}</td>
+        </tr>`).join("");
+    }
+  </script>
+</body>
+</html>

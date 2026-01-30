@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff & Roles • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Staff & Roles</div>
+          <div class="muted" style="font-size: var(--text-sm)">Allowlist staff emails</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card">
+          <div style="display:grid; grid-template-columns: 1fr 140px auto; gap:10px; align-items:end;">
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span class="muted text-sm">Email</span>
+              <input id="staffEmail" style="height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;" />
+            </label>
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span class="muted text-sm">Role</span>
+              <select id="staffRole" style="height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;">
+                <option value="admin">admin</option>
+                <option value="staff">staff</option>
+              </select>
+            </label>
+            <button id="saveStaff" class="btn primary">Add / Update</button>
+          </div>
+          <div id="staffList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchStaffAllowlist, upsertStaffAllowlist } from "../js/api.js";
+
+    renderSidebar("staff-roles.html");
+    await requireAuth();
+    document.getElementById("saveStaff").addEventListener("click", save);
+    load();
+
+    async function load() {
+      const list = document.getElementById("staffList");
+      list.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const { data, error } = await fetchStaffAllowlist();
+      if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+      if (!data || data.length===0) { list.innerHTML = `<div class="muted">No staff yet</div>`; return; }
+      list.innerHTML = data.map(r=>`
+        <div class="flex-between" style="padding:10px 12px; border:1px solid var(--color-border); border-radius: var(--radius-sm);">
+          <div>
+            <div class="font-semibold">${r.email}</div>
+            <div class="muted text-sm">${r.role}</div>
+          </div>
+          <span class="chip">${new Date(r.created_at).toLocaleDateString()}</span>
+        </div>
+      `).join("");
+    }
+
+    async function save() {
+      const email = document.getElementById("staffEmail").value.trim().toLowerCase();
+      const role = document.getElementById("staffRole").value;
+      if (!email.includes("@")) { showToast("Invalid email"); return; }
+      const { error } = await upsertStaffAllowlist(email, role);
+      if (error) { showToast(error.message); return; }
+      showToast("Saved");
+      load();
+    }
+  </script>
+</body>
+</html>

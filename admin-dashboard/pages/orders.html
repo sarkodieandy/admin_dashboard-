@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orders • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Orders</div>
+          <div class="muted" style="font-size: var(--text-sm)">Operational view</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="flex-between" style="margin-bottom: var(--space-3);">
+          <div class="muted text-sm">Filter by status</div>
+          <select id="statusFilter" style="height:36px; border:1px solid var(--color-border); border-radius: var(--radius-sm);">
+            <option value="">All</option>
+            <option value="placed">Placed</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="preparing">Preparing</option>
+            <option value="ready">Ready</option>
+            <option value="en_route">On the way</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="card" style="padding:0;">
+          <table class="table" id="ordersTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>Status</th><th>Total</th><th>Address</th><th>Created</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchOrders } from "../js/api.js";
+    import { statusLabel, fmtMoney, fmtDateTime } from "../js/utils.js";
+
+    renderSidebar("orders.html");
+    await requireAuth();
+    const tbody = document.querySelector("#ordersTable tbody");
+    const filter = document.getElementById("statusFilter");
+    filter.addEventListener("change", loadOrders);
+    loadOrders();
+
+    async function loadOrders() {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await fetchOrders({ status: filter.value });
+      if (error) { tbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message}</td></tr>`; return; }
+      if (!data || data.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="muted">No orders</td></tr>`; return; }
+      tbody.innerHTML = data.map(o => `
+        <tr>
+          <td>#${o.id.slice(0,8)}</td>
+          <td>${statusLabel(o.status)}</td>
+          <td>${fmtMoney(o.total)}</td>
+          <td>${o.address_text || ""}</td>
+          <td>${fmtDateTime(o.created_at)}</td>
+        </tr>
+      `).join("");
+    }
+  </script>
+</body>
+</html>
