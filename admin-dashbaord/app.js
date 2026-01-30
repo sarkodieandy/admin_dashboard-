@@ -86,24 +86,21 @@ function setRoute(id) {
 }
 
 async function requireStaff() {
-  const { data, error } = await state.supabase.auth.getUser();
-  if (error || !data.user) {
+  const { data, error } = await state.supabase.auth.getSession();
+  const user = data?.session?.user;
+  if (error || !user) {
     dbg("auth:no-user");
     showLogin(true);
     return null;
   }
-  const { data: profile, error: perr } = await state.supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", data.user.id)
-    .maybeSingle();
+  const { data: profile, error: perr } = await state.supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (perr || !profile || !["admin", "staff", "owner"].includes(profile.role)) {
     dbg("auth:not-staff", { role: profile?.role });
     showLogin(true);
     return null;
   }
   state.profile = profile;
-  document.getElementById("meName").textContent = profile.name || data.user.email || "Staff";
+  document.getElementById("meName").textContent = profile.name || user.email || "Staff";
   document.getElementById("meRole").textContent = profile.role;
   showLogin(false);
   return profile;
@@ -125,12 +122,15 @@ function bindLogin() {
     dbg("login:submit", { email });
     const btn = document.getElementById("loginBtn");
     btn.disabled = true;
-    const { error } = await state.supabase.auth.signInWithPassword({ email, password });
+    const { error, data } = await state.supabase.auth.signInWithPassword({ email, password });
     btn.disabled = false;
     if (error) {
       showToast(error.message);
       dbg("login:error", error);
       return;
+    }
+    if (data?.session?.user) {
+      dbg("login:session", { user: data.session.user.id });
     }
     await requireStaff();
     setRoute("dashboard");
@@ -411,12 +411,15 @@ async function sendChatMessage(e) {
     showToast("Select a conversation first");
     return;
   }
+  const { data: session } = await state.supabase.auth.getSession();
+  const user = session?.session?.user;
   const text = input.value.trim();
   if (!text) return;
   const { error } = await state.supabase.from("messages").insert({
     conversation_id: convoId,
     text,
     sender_role: "staff",
+    sender_id: user?.id ?? null,
     message_type: "text",
   });
   if (error) {
@@ -692,6 +695,13 @@ async function bootstrap() {
   renderContent();
   await fetchNotifications();
   await setupRealtime();
+
+  document.getElementById("signOutBtn")?.addEventListener("click", async () => {
+    await state.supabase.auth.signOut();
+    state.profile = null;
+    showLogin(true);
+    document.getElementById("content").innerHTML = "";
+  });
 }
 
 document.addEventListener("DOMContentLoaded", bootstrap);
