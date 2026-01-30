@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+  command = "bash netlify/build-env.sh"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Helpful for Supabase auth redirects and external assets.
+    Content-Security-Policy = "default-src 'self' https: data: blob:; script-src 'self' https: 'unsafe-inline'; style-src 'self' https: 'unsafe-inline'; connect-src 'self' https: wss:; img-src 'self' https: data: blob:; font-src 'self' https: data:; frame-ancestors 'self';"

@@ -19,7 +19,7 @@ Required:
 - `src/lib/supabase/server.ts`
 
 2) Auth + route guard
-- `middleware.ts` (protects `/app/*`, redirects to `/login`)
+- (legacy) previously used Next.js `middleware.ts`; the dashboard is now a static HTML/CSS/JS app.
 
 3) Fetch orders with pagination + filters
 - `src/lib/queries/orders.ts` (`useOrders` – status + basic search)
