@@ -214,7 +214,7 @@ async function fetchRecentOrders() {
     .from("orders")
     .select("id,status,total,created_at")
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(12);
   if (error) {
     list.innerHTML = `<div class="text-red-500 text-sm">${error.message}</div>`;
     return;
@@ -224,7 +224,7 @@ async function fetchRecentOrders() {
       (o) => `
       <div class="flex items-center justify-between border border-surface-200 dark:border-white/10 rounded-lg px-3 py-2">
         <div class="text-sm font-semibold">#${o.id.slice(0, 8)}</div>
-        <div class="text-xs uppercase tracking-wide">${o.status}</div>
+        <div class="text-xs uppercase tracking-wide">${formatStatus(o.status)}</div>
         <div class="text-sm font-bold">GH₵ ${Number(o.total || 0).toFixed(2)}</div>
       </div>`
     )
@@ -274,10 +274,11 @@ function viewOrders() {
         </div>
         <select id="ordersFilter" class="h-10 px-3 rounded-lg border border-surface-200">
           <option value="">All</option>
-          <option value="new">New</option>
+          <option value="placed">Placed</option>
+          <option value="confirmed">Confirmed</option>
           <option value="preparing">Preparing</option>
           <option value="ready">Ready</option>
-          <option value="enroute">Out for delivery</option>
+          <option value="en_route">On the way</option>
           <option value="delivered">Delivered</option>
           <option value="cancelled">Cancelled</option>
         </select>
@@ -295,7 +296,11 @@ async function fetchOrders(status) {
   const list = document.getElementById("ordersList");
   if (!list || !state.supabase) return;
   list.innerHTML = `<div class="text-sm text-slate-500">Loading...</div>`;
-  let query = state.supabase.from("orders").select("id,status,total,created_at").order("created_at", { ascending: false }).limit(20);
+  let query = state.supabase
+    .from("orders")
+    .select("id,status,total,created_at,address_text,payment_status,type")
+    .order("created_at", { ascending: false })
+    .limit(100);
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) {
@@ -310,8 +315,9 @@ async function fetchOrders(status) {
           <div>
             <div class="font-semibold">#${o.id.slice(0, 8)}</div>
             <div class="text-xs text-slate-500">${new Date(o.created_at).toLocaleString()}</div>
+            <div class="text-xs text-slate-500">${o.address_text || ""}</div>
           </div>
-          <div class="text-xs uppercase tracking-wide">${o.status}</div>
+          <div class="text-xs uppercase tracking-wide">${formatStatus(o.status)}</div>
           <div class="font-bold">GH₵ ${Number(o.total || 0).toFixed(2)}</div>
         </div>`
     )
@@ -453,11 +459,24 @@ async function fetchMenu() {
   const list = document.getElementById("menuList");
   if (!list || !state.supabase) return;
   list.innerHTML = `<div class="text-sm text-slate-500">Loading...</div>`;
-  const { data, error } = await state.supabase
-    .from("menu_items")
-    .select("id,name,price,description,is_available")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const [cats, items] = await Promise.all([
+    state.supabase.from("categories").select("id,name").order("sort_order", { ascending: true }),
+    state.supabase
+      .from("menu_items")
+      .select("id,name,price,description,is_available,category_id,featured,prep_time_min")
+      .order("created_at", { ascending: false })
+      .limit(200),
+  ]);
+  if (cats.error) {
+    list.innerHTML = `<div class="text-red-500 text-sm">${cats.error.message}</div>`;
+    return;
+  }
+  if (items.error) {
+    list.innerHTML = `<div class="text-red-500 text-sm">${items.error.message}</div>`;
+    return;
+  }
+  const catMap = new Map((cats.data || []).map((c) => [c.id, c.name]));
+  const data = items.data || [];
   if (error) {
     list.innerHTML = `<div class="text-red-500 text-sm">${error.message}</div>`;
     return;
@@ -472,6 +491,7 @@ async function fetchMenu() {
             ${m.is_available ? "Available" : "Sold out"}
           </span>
         </div>
+        <div class="text-xs text-slate-500">${catMap.get(m.category_id) || "Uncategorized"} • ${m.featured ? "Featured" : "Standard"} • ${m.prep_time_min ? `${m.prep_time_min} min` : "prep n/a"}</div>
         <div class="text-sm text-slate-500">${m.description || ""}</div>
         <div class="font-bold">GH₵ ${Number(m.price || 0).toFixed(2)}</div>
       </div>`
