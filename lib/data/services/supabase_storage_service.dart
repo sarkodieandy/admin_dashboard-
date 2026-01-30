@@ -8,7 +8,8 @@ class SupabaseStorageService {
   String? publicUrl({required String bucket, required String? path}) {
     var normalizedPath = (path ?? '').trim();
     if (normalizedPath.isEmpty) return null;
-    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+    if (normalizedPath.startsWith('http://') ||
+        normalizedPath.startsWith('https://')) {
       return normalizedPath;
     }
 

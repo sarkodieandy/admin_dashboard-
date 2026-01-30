@@ -183,6 +183,24 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["delivery_settings"]["Row"]>;
         Relationships: [];
       };
+
+      staff_notifications: {
+        Row: {
+          id: string;
+          recipient_id: string;
+          type: "new_order" | "customer_message" | "system";
+          title: string;
+          body: string | null;
+          entity_type: string | null;
+          entity_id: string | null;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["staff_notifications"]["Row"]> &
+          Pick<Database["public"]["Tables"]["staff_notifications"]["Row"], "recipient_id" | "type" | "title">;
+        Update: Partial<Database["public"]["Tables"]["staff_notifications"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -190,4 +208,3 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
-

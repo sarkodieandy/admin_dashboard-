@@ -42,5 +42,39 @@ class AppColors {
       scrim: Colors.black,
     );
   }
-}
 
+  static ColorScheme darkScheme() {
+    // Keep brand warmth but shift surfaces for dark UI.
+    return const ColorScheme(
+      brightness: Brightness.dark,
+      primary: Color(0xFFFF6B4A),
+      onPrimary: Color(0xFF1A1210),
+      primaryContainer: Color(0xFF4A2219),
+      onPrimaryContainer: Color(0xFFFFD7CD),
+      secondary: Color(0xFF4BD19A),
+      onSecondary: Color(0xFF06150F),
+      secondaryContainer: Color(0xFF123226),
+      onSecondaryContainer: Color(0xFFCDEEDD),
+      tertiary: Color(0xFFFFC07A),
+      onTertiary: Color(0xFF1A1206),
+      tertiaryContainer: Color(0xFF3A2A14),
+      onTertiaryContainer: Color(0xFFFFE2CD),
+      error: Color(0xFFFFB4AB),
+      onError: Color(0xFF690005),
+      errorContainer: Color(0xFF93000A),
+      onErrorContainer: Color(0xFFFFDAD6),
+      surface: Color(0xFF0F0E0D),
+      onSurface: Color(0xFFF3EFE7),
+      surfaceContainerHighest: Color(0xFF1A1816),
+      onSurfaceVariant: Color(0xFFCFC6BD),
+      outline: Color(0xFF3B3733),
+      shadow: Colors.black,
+      inverseSurface: Color(0xFFF3EFE7),
+      onInverseSurface: Color(0xFF1C1B1A),
+      inversePrimary: Color(0xFFE3512B),
+      surfaceTint: Color(0xFFFF6B4A),
+      outlineVariant: Color(0xFF2A2622),
+      scrim: Colors.black,
+    );
+  }
+}

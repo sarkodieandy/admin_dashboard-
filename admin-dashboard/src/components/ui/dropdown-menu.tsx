@@ -39,7 +39,7 @@ export const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-[--radius] border bg-card p-1 text-card-foreground shadow-md",
+      "z-50 min-w-[8rem] overflow-hidden rounded-[--radius] border bg-card/45 p-1 text-card-foreground shadow-md backdrop-blur-xl",
       className,
     )}
     {...props}
@@ -56,7 +56,7 @@ export const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[10rem] overflow-hidden rounded-[--radius] border bg-card p-1 text-card-foreground shadow-md",
+        "z-50 min-w-[10rem] overflow-hidden rounded-[--radius] border bg-card/45 p-1 text-card-foreground shadow-md backdrop-blur-xl",
         className,
       )}
       {...props}
@@ -145,4 +145,3 @@ DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
 export const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span className={cn("ml-auto text-xs tracking-widest text-muted-foreground", className)} {...props} />
 );
-

@@ -29,10 +29,22 @@ export function useUpsertDeliverySettings() {
 
   return useMutation({
     mutationFn: async (values: Omit<DeliverySettingsRow, "id" | "updated_at">) => {
-      const payload: Database["public"]["Tables"]["delivery_settings"]["Insert"] = values;
-      const { error } = await supabase.from("delivery_settings").upsert(payload);
+      // delivery_settings is intended as a singleton row.
+      // Upsert without a stable unique key can accidentally create multiple rows,
+      // so we update if a row exists, otherwise insert.
+      const existing = await supabase.from("delivery_settings").select("id").limit(1).maybeSingle();
+      if (existing.error) throw existing.error;
+
+      if (existing.data?.id) {
+        const { error } = await supabase.from("delivery_settings").update(values).eq("id", existing.data.id);
+        if (error) throw error;
+        return { id: existing.data.id, created: false };
+      }
+
+      const insertPayload: Database["public"]["Tables"]["delivery_settings"]["Insert"] = values;
+      const { data, error } = await supabase.from("delivery_settings").insert(insertPayload).select("id").single();
       if (error) throw error;
-      return true;
+      return { id: (data as { id: string }).id, created: true };
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["settings", "delivery"] });

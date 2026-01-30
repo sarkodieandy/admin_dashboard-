@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/env/app_env.dart';
 import '../../../core/theme/app_radius.dart';
@@ -567,7 +566,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.x10),
                   Text(
-                    'Bekwai deliveries only • Minimum ${Money.format(AppConstants.minOrderSubtotal)}',
+                    'Bekwai deliveries only • Minimum ${Money.format(cart.minimumOrderSubtotal)}',
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ],

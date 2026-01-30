@@ -8,8 +8,10 @@ import '../../presentation/screens/auth/signup_screen.dart';
 import '../../presentation/screens/cart/cart_screen.dart';
 import '../../presentation/screens/checkout/checkout_screen.dart';
 import '../../presentation/screens/checkout/address_edit_screen.dart';
+import '../../presentation/screens/chat/chat_screen.dart';
 import '../../presentation/screens/chat/order_chat_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
+import '../../presentation/screens/home/popular_items_screen.dart';
 import '../../presentation/screens/inbox/inbox_screen.dart';
 import '../../presentation/screens/menu/category_menu_screen.dart';
 import '../../presentation/screens/menu/menu_item_detail_screen.dart';
@@ -101,6 +103,10 @@ class AppRouter {
             OrderReviewScreen(orderId: state.pathParameters['orderId']!),
           ),
         ),
+        GoRoute(
+          path: InboxScreen.routePath,
+          pageBuilder: (context, state) => _fade(state.pageKey, const InboxScreen()),
+        ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
             return AppScaffold(navigationShell: navigationShell);
@@ -115,6 +121,10 @@ class AppRouter {
                     GoRoute(
                       path: 'search',
                       pageBuilder: (context, state) => _slideUp(state.pageKey, const SearchScreen()),
+                    ),
+                    GoRoute(
+                      path: 'popular',
+                      pageBuilder: (context, state) => _fade(state.pageKey, const PopularItemsScreen()),
                     ),
                     GoRoute(
                       path: 'category/:categoryId',
@@ -145,8 +155,8 @@ class AppRouter {
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: InboxScreen.routePath,
-                  pageBuilder: (context, state) => _fade(state.pageKey, const InboxScreen()),
+                  path: ChatScreen.routePath,
+                  pageBuilder: (context, state) => _fade(state.pageKey, const ChatScreen()),
                 ),
               ],
             ),

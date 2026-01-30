@@ -35,18 +35,25 @@ function SidebarInner({ collapsed, onToggle }: { collapsed: boolean; onToggle: (
       <nav className="flex-1 space-y-1">
         {navItems.map((item) => {
           const active = pathname === item.href;
-          const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "group flex items-center gap-3 rounded-[calc(var(--radius)-6px)] px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                active && "bg-card text-foreground shadow-sm border",
+                "group flex items-center gap-3 rounded-[calc(var(--radius)-6px)] px-3 py-2 text-sm font-semibold text-muted-foreground transition-all hover:-translate-y-[1px] hover:bg-accent hover:text-foreground",
+                active && "border bg-card text-foreground shadow-sm",
                 collapsed && "justify-center px-2",
               )}
+              data-active={active ? "true" : "false"}
             >
-              <Icon className={cn("h-4 w-4", active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+              <span
+                className={cn(
+                  "grid h-8 w-8 place-items-center rounded-[12px] transition-all",
+                  active ? "bg-secondary" : "bg-transparent group-hover:bg-secondary/60",
+                )}
+              >
+                <span className={cn(active && "motion-safe:animate-[navPop_.24s_ease-out]")}>{item.icon}</span>
+              </span>
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Link>
           );
@@ -68,20 +75,21 @@ export function Sidebar() {
       <aside className={cn("hidden h-screen border-r bg-card/80 backdrop-blur lg:sticky lg:top-0 lg:block", collapsed ? "w-[76px]" : "w-[280px]")}>
         <SidebarInner collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
       </aside>
-
-      <div className="lg:hidden">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="h-10 w-10">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 sm:max-w-sm">
-            <SidebarInner collapsed={false} onToggle={() => {}} />
-          </SheetContent>
-        </Sheet>
-      </div>
     </>
   );
 }
 
+export function MobileSidebar() {
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="icon" className="h-10 w-10">
+          <Menu className="h-4 w-4" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="p-0 sm:max-w-sm">
+        <SidebarInner collapsed={false} onToggle={() => {}} />
+      </SheetContent>
+    </Sheet>
+  );
+}

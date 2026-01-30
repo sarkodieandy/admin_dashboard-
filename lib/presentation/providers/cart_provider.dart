@@ -18,8 +18,17 @@ class CartProvider extends ChangeNotifier {
   CartProvider({
     required CartRepository repository,
     required MenuRepository menuRepository,
+    double? deliveryBaseFee,
+    double? minimumOrderSubtotal,
   })  : _repository = repository,
-        _menuRepository = menuRepository {
+        _menuRepository = menuRepository,
+        _deliveryBaseFee = (deliveryBaseFee ?? AppConstants.baseDeliveryFee)
+            .clamp(0.0, double.infinity)
+            .toDouble(),
+        _minimumOrderSubtotal =
+            (minimumOrderSubtotal ?? AppConstants.minOrderSubtotal)
+                .clamp(0.0, double.infinity)
+                .toDouble() {
     unawaited(_restore());
   }
 
@@ -40,6 +49,12 @@ class CartProvider extends ChangeNotifier {
   double _tip = 0;
   DateTime? _scheduledFor;
 
+  double _deliveryBaseFee;
+  double _minimumOrderSubtotal;
+
+  double get baseDeliveryFee => _deliveryBaseFee;
+  double get minimumOrderSubtotal => _minimumOrderSubtotal;
+
   bool get isRestoring => _isRestoring;
   String? get error => _error;
   List<CartLine> get lines => List.unmodifiable(_lines);
@@ -56,7 +71,7 @@ class CartProvider extends ChangeNotifier {
 
   double get subtotal => _lines.fold<double>(0, (sum, l) => sum + l.total);
 
-  double get deliveryFee => _lines.isEmpty ? 0 : AppConstants.baseDeliveryFee;
+  double get deliveryFee => _lines.isEmpty ? 0 : _deliveryBaseFee;
 
   double get discount {
     final promo = _promo;
@@ -75,7 +90,19 @@ class CartProvider extends ChangeNotifier {
 
   double get total => (subtotal + deliveryFee - discount + _tip).clamp(0, double.infinity);
 
-  bool get meetsMinimumOrder => subtotal >= AppConstants.minOrderSubtotal;
+  bool get meetsMinimumOrder => subtotal >= _minimumOrderSubtotal;
+
+  void setDeliveryRules({
+    required double deliveryBaseFee,
+    required double minimumOrderSubtotal,
+  }) {
+    final nextBase = deliveryBaseFee.clamp(0.0, double.infinity).toDouble();
+    final nextMin = minimumOrderSubtotal.clamp(0.0, double.infinity).toDouble();
+    if (nextBase == _deliveryBaseFee && nextMin == _minimumOrderSubtotal) return;
+    _deliveryBaseFee = nextBase;
+    _minimumOrderSubtotal = nextMin;
+    notifyListeners();
+  }
 
   Future<void> _restore() async {
     _isRestoring = true;
@@ -256,4 +283,3 @@ class CartProvider extends ChangeNotifier {
     ].join('|');
   }
 }
-

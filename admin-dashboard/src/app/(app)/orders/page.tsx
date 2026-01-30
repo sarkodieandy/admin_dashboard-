@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { exportCsv } from "@/lib/utils/csv";
+import { errorMessage } from "@/lib/utils/errors";
 import { useOrders, useOrderDetail, useUpdateOrderStatus, useRealtimeOrders } from "@/lib/queries/orders";
 import type { OrderStatus } from "@/types/supabase";
 
@@ -231,7 +232,8 @@ export default function OrdersPage() {
                       await updateStatus.mutateAsync({ id: detail.data.id, status: "confirmed" });
                       toast.success("Confirmed");
                     } catch (e) {
-                      toast.error("Failed", { description: String(e) });
+                      console.error("[orders] update status failed", e);
+                      toast.error("Failed", { description: errorMessage(e) });
                     }
                   }}
                 >
@@ -246,7 +248,8 @@ export default function OrdersPage() {
                       await updateStatus.mutateAsync({ id: detail.data.id, status: "preparing" });
                       toast.success("Preparing");
                     } catch (e) {
-                      toast.error("Failed", { description: String(e) });
+                      console.error("[orders] update status failed", e);
+                      toast.error("Failed", { description: errorMessage(e) });
                     }
                   }}
                 >
@@ -261,7 +264,8 @@ export default function OrdersPage() {
                       await updateStatus.mutateAsync({ id: detail.data.id, status: "ready" });
                       toast.success("Marked ready");
                     } catch (e) {
-                      toast.error("Failed", { description: String(e) });
+                      console.error("[orders] update status failed", e);
+                      toast.error("Failed", { description: errorMessage(e) });
                     }
                   }}
                 >
@@ -276,7 +280,8 @@ export default function OrdersPage() {
                       await updateStatus.mutateAsync({ id: detail.data.id, status: "en_route" });
                       toast.success("En route");
                     } catch (e) {
-                      toast.error("Failed", { description: String(e) });
+                      console.error("[orders] update status failed", e);
+                      toast.error("Failed", { description: errorMessage(e) });
                     }
                   }}
                 >
@@ -293,7 +298,8 @@ export default function OrdersPage() {
                     await updateStatus.mutateAsync({ id: detail.data.id, status: "delivered" });
                     toast.success("Delivered");
                   } catch (e) {
-                    toast.error("Failed", { description: String(e) });
+                    console.error("[orders] update status failed", e);
+                    toast.error("Failed", { description: errorMessage(e) });
                   }
                 }}
               >
@@ -309,7 +315,8 @@ export default function OrdersPage() {
                     await updateStatus.mutateAsync({ id: detail.data.id, status: "cancelled" });
                     toast.success("Cancelled");
                   } catch (e) {
-                    toast.error("Failed", { description: String(e) });
+                    console.error("[orders] update status failed", e);
+                    toast.error("Failed", { description: errorMessage(e) });
                   }
                 }}
               >

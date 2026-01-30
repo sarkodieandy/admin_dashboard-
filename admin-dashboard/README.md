@@ -41,6 +41,7 @@ Production-ready **Restaurant Admin Dashboard** (Next.js App Router + TypeScript
 SQL lives in `db/`:
 - `db/compat/001_admin_additions.sql` — safe additions for your **existing** customer app schema (recommended)
 - `db/compat/002_staff_allowlist.sql` — optional allowlist so only admin/staff emails become staff in `profiles`
+- `db/compat/003_staff_notifications.sql` — staff notification bell + Notifications page (recommended)
 - `db/001_schema.sql` / `db/002_rls.sql` / `db/003_seed.sql` — full standalone schema for a **new** Supabase project (do not apply to your existing app DB)
 
 ### Storage buckets
@@ -52,6 +53,7 @@ Create these buckets in Supabase Storage:
 Enable Realtime for:
 - `orders`
 - `chat_messages`
+- `staff_notifications` (if you applied it)
 - (optional) `support_tickets`, `notifications`
 
 ## How to Run Locally
@@ -73,10 +75,11 @@ If you already have the Flutter customer app schema in this repo (`supabase/migr
 Instead, in Supabase SQL Editor run:
 1) `admin-dashboard/db/compat/001_admin_additions.sql`
 2) (optional) `admin-dashboard/db/compat/002_staff_allowlist.sql` (recommended if you want strict admin-only logins)
+3) (optional) `admin-dashboard/db/compat/003_staff_notifications.sql` (recommended for staff notification bell)
 
 Then:
 - Create Storage buckets: `menu-images`, `chat-attachments`
-- Turn on Realtime for `orders` + `chat_messages`
+- Turn on Realtime for `orders` + `chat_messages` (+ `staff_notifications` if used)
 
 ### 4) Create a staff user (owner/admin/staff)
 In Supabase Auth:

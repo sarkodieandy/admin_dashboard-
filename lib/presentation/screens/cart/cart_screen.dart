@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -290,7 +289,7 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                               const SizedBox(height: AppSpacing.x10),
                               Text(
-                                'Minimum order: ${Money.format(AppConstants.minOrderSubtotal)}',
+                                'Minimum order: ${Money.format(cart.minimumOrderSubtotal)}',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -312,7 +311,7 @@ class _CartScreenState extends State<CartScreen> {
                             Padding(
                               padding: const EdgeInsets.only(bottom: AppSpacing.x10),
                               child: Text(
-                                'Add ${Money.format(AppConstants.minOrderSubtotal - cart.subtotal)} more to checkout.',
+                                'Add ${Money.format(cart.minimumOrderSubtotal - cart.subtotal)} more to checkout.',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -399,4 +398,3 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-

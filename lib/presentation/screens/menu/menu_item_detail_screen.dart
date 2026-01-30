@@ -13,6 +13,7 @@ import '../../providers/menu_provider.dart';
 import '../../widgets/menu/menu_item_card.dart';
 import '../../widgets/menu/spice_indicator.dart';
 import '../cart/cart_screen.dart';
+import '../../design_system/app_components.dart';
 
 class MenuItemDetailScreen extends StatefulWidget {
   const MenuItemDetailScreen({super.key, required this.itemId});
@@ -150,9 +151,12 @@ class _MenuItemDetailScreenState extends State<MenuItemDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.x16),
           children: [
-            _ImageCarousel(
-              images: images.map((e) => e.imageUrl).toList(),
-              fallbackUrl: item.imageUrl,
+            Hero(
+              tag: 'menu_item_image_${item.id}',
+              child: _ImageCarousel(
+                images: images.map((e) => e.imageUrl).toList(),
+                fallbackUrl: item.imageUrl,
+              ),
             ),
             const SizedBox(height: AppSpacing.x16),
             Text(
@@ -302,39 +306,51 @@ class _MenuItemDetailScreenState extends State<MenuItemDetailScreen> {
                 const Spacer(),
                 Expanded(
                   flex: 2,
-                  child: ElevatedButton(
-                    onPressed: item.isSoldOut
-                        ? null
-                        : () async {
-                            final selectedAddons = item.addons
-                                .where((a) => _addonIds.contains(a.id))
-                                .toList();
-                            await context.read<CartProvider>().addFromMenuItem(
-                              item: item,
-                              qty: _qty,
-                              note: _note.text,
-                              variant: selectedVariant,
-                              addons: selectedAddons,
-                            );
+                  child: PressScale(
+                    enabled: !item.isSoldOut,
+                    child: ElevatedButton(
+                      onPressed: item.isSoldOut
+                          ? null
+                          : () async {
+                              AppComponents.haptic();
+                              final selectedAddons = item.addons
+                                  .where((a) => _addonIds.contains(a.id))
+                                  .toList();
+                              await context.read<CartProvider>().addFromMenuItem(
+                                item: item,
+                                qty: _qty,
+                                note: _note.text,
+                                variant: selectedVariant,
+                                addons: selectedAddons,
+                              );
 
-                            if (!context.mounted) return;
-                            final messenger = ScaffoldMessenger.of(context);
-                            messenger.hideCurrentSnackBar();
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: const Text('Added to cart'),
-                                duration: const Duration(milliseconds: 1200),
-                                action: SnackBarAction(
-                                  label: AppStrings.cart,
-                                  onPressed: () {
-                                    messenger.hideCurrentSnackBar();
-                                    context.push(CartScreen.routePath);
-                                  },
+                              if (!context.mounted) return;
+                              final messenger = ScaffoldMessenger.of(context);
+                              messenger.hideCurrentSnackBar();
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: const Text('Added to cart'),
+                                  duration: const Duration(milliseconds: 1200),
+                                  action: SnackBarAction(
+                                    label: AppStrings.cart,
+                                    onPressed: () {
+                                      messenger.hideCurrentSnackBar();
+                                      context.push(CartScreen.routePath);
+                                    },
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                    child: Text('${AppStrings.add} • ${Money.format(total)}'),
+                              );
+                            },
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeOutCubic,
+                        child: Text(
+                          '${AppStrings.add} • ${Money.format(total)}',
+                          key: ValueKey(total),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],

@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/datasources/profile_supabase_datasource.dart';
+import '../data/datasources/delivery_settings_supabase_datasource.dart';
 import '../data/datasources/menu_supabase_datasource.dart';
 import '../data/repositories/profile_repository_impl.dart';
+import '../data/repositories/delivery_settings_repository_impl.dart';
 import '../data/repositories/menu_repository_impl.dart';
 import '../data/repositories/cart_repository_impl.dart';
 import '../data/datasources/address_supabase_datasource.dart';
@@ -22,6 +24,7 @@ import '../data/services/supabase_storage_service.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../presentation/providers/address_provider.dart';
 import '../presentation/providers/cart_provider.dart';
+import '../presentation/providers/delivery_settings_provider.dart';
 import '../presentation/providers/menu_provider.dart';
 import '../presentation/providers/order_provider.dart';
 import '../presentation/providers/notification_provider.dart';
@@ -35,6 +38,7 @@ import '../domain/repositories/chat_repository.dart';
 import '../domain/repositories/notification_repository.dart';
 import '../domain/repositories/review_repository.dart';
 import '../domain/repositories/menu_repository.dart';
+import '../domain/repositories/delivery_settings_repository.dart';
 import 'constants/app_strings.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
@@ -47,12 +51,15 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = AppTheme.light();
+    final darkTheme = AppTheme.dark();
 
     if (!isSupabaseConfigured) {
       return MaterialApp(
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
         theme: theme,
+        darkTheme: darkTheme,
+        themeMode: ThemeMode.system,
         home: const SupabaseSetupScreen(),
       );
     }
@@ -73,12 +80,37 @@ class App extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => MenuProvider(repository: context.read<MenuRepository>()),
         ),
-        Provider<CartRepository>(create: (_) => CartRepositoryImpl()),
+        Provider<DeliverySettingsRepository>(
+          create: (context) => DeliverySettingsRepositoryImpl(
+            DeliverySettingsSupabaseDatasource(context.read<SupabaseClient>()),
+          ),
+        ),
         ChangeNotifierProvider(
+          create: (context) =>
+              DeliverySettingsProvider(repository: context.read<DeliverySettingsRepository>()),
+        ),
+        Provider<CartRepository>(create: (_) => CartRepositoryImpl()),
+        ChangeNotifierProxyProvider3<MenuRepository, CartRepository, DeliverySettingsProvider,
+            CartProvider>(
           create: (context) => CartProvider(
             repository: context.read<CartRepository>(),
             menuRepository: context.read<MenuRepository>(),
+            deliveryBaseFee: context.read<DeliverySettingsProvider>().baseFee,
+            minimumOrderSubtotal: context.read<DeliverySettingsProvider>().minimumOrderAmount,
           ),
+          update: (context, menuRepo, cartRepo, delivery, provider) {
+            provider ??= CartProvider(
+              repository: cartRepo,
+              menuRepository: menuRepo,
+              deliveryBaseFee: delivery.baseFee,
+              minimumOrderSubtotal: delivery.minimumOrderAmount,
+            );
+            provider.setDeliveryRules(
+              deliveryBaseFee: delivery.baseFee,
+              minimumOrderSubtotal: delivery.minimumOrderAmount,
+            );
+            return provider;
+          },
         ),
         Provider<AddressRepository>(
           create: (context) => AddressRepositoryImpl(
@@ -151,6 +183,8 @@ class App extends StatelessWidget {
             title: AppStrings.appName,
             debugShowCheckedModeBanner: false,
             theme: theme,
+            darkTheme: darkTheme,
+            themeMode: ThemeMode.system,
             routerConfig: context.read<GoRouter>(),
           );
         },

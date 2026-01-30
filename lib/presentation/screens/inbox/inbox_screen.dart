@@ -8,6 +8,7 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_error_state.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../design_system/app_components.dart';
 
 class InboxScreen extends StatelessWidget {
   const InboxScreen({super.key});
@@ -67,67 +68,70 @@ class InboxScreen extends StatelessWidget {
                     separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.x12),
                     itemBuilder: (context, index) {
                       final n = items[index];
-                      return AppCard(
-                        onTap: () => context.read<NotificationProvider>().markAsRead(n.id),
-                        padding: const EdgeInsets.all(AppSpacing.x14),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              height: 42,
-                              width: 42,
-                              decoration: BoxDecoration(
-                                color: n.isRead
-                                    ? theme.colorScheme.surfaceContainerHighest
-                                    : theme.colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(AppRadius.r16),
+                      return StaggeredSlideFadeIn(
+                        index: index,
+                        child: AppCard(
+                          onTap: () => context.read<NotificationProvider>().markAsRead(n.id),
+                          padding: const EdgeInsets.all(AppSpacing.x14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                height: 42,
+                                width: 42,
+                                decoration: BoxDecoration(
+                                  color: n.isRead
+                                      ? theme.colorScheme.surfaceContainerHighest
+                                      : theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(AppRadius.r16),
+                                ),
+                                child: Icon(
+                                  n.isRead ? Icons.notifications_none : Icons.notifications_rounded,
+                                  color: n.isRead
+                                      ? theme.colorScheme.onSurfaceVariant
+                                      : theme.colorScheme.onPrimaryContainer,
+                                ),
                               ),
-                              child: Icon(
-                                n.isRead ? Icons.notifications_none : Icons.notifications_rounded,
-                                color: n.isRead
-                                    ? theme.colorScheme.onSurfaceVariant
-                                    : theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.x12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          n.title,
-                                          style: theme.textTheme.titleSmall?.copyWith(
-                                            fontWeight: n.isRead ? FontWeight.w800 : FontWeight.w900,
-                                            letterSpacing: -0.2,
+                              const SizedBox(width: AppSpacing.x12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            n.title,
+                                            style: theme.textTheme.titleSmall?.copyWith(
+                                              fontWeight: n.isRead ? FontWeight.w800 : FontWeight.w900,
+                                              letterSpacing: -0.2,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      if (!n.isRead)
-                                        Container(
-                                          height: 10,
-                                          width: 10,
-                                          decoration: BoxDecoration(
-                                            color: theme.colorScheme.primary,
-                                            shape: BoxShape.circle,
+                                        if (!n.isRead)
+                                          Container(
+                                            height: 10,
+                                            width: 10,
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary,
+                                              shape: BoxShape.circle,
+                                            ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppSpacing.x6),
-                                  Text(
-                                    n.body,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      height: 1.25,
+                                      ],
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: AppSpacing.x6),
+                                    Text(
+                                      n.body,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },

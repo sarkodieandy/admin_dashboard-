@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="w-full overflow-auto rounded-[--radius] border bg-card">
+    <div className="w-full overflow-auto rounded-[--radius] border bg-card/45 backdrop-blur-xl">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
@@ -59,4 +59,3 @@ export const TableCaption = React.forwardRef<HTMLTableCaptionElement, React.HTML
   ),
 );
 TableCaption.displayName = "TableCaption";
-

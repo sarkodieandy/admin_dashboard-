@@ -19,8 +19,8 @@ class CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final imageUrl = _imageUrlFor(category.name);
-    final hint = _hintFor(category.name);
+    final imageUrl = categoryImageUrlFor(category.name);
+    final hint = categoryHintFor(category.name);
 
     return InkWell(
       onTap: onTap,
@@ -104,44 +104,50 @@ class CategoryTile extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _imageUrlFor(String name) {
-    final n = name.toLowerCase();
-    // Real photos for a nicer UI (stable, cached by the CDN).
-    // Note: Keep these lightweight (w=256) since they are used as small thumbnails.
-    if (n.contains('drink')) {
-      return 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('dessert')) {
-      return 'https://images.unsplash.com/photo-1505253216365-03599a2dc57b?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('wrap') || n.contains('shawarma')) {
-      return 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('swallow') || n.contains('soup')) {
-      return 'https://images.unsplash.com/photo-1604908176997-125f25cc500f?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('grill') || n.contains('chicken')) {
-      return 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('side')) {
-      return 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('jollof') || n.contains('rice')) {
-      return 'https://images.unsplash.com/photo-1604908554100-279b9fba6c14?auto=format&fit=crop&w=256&q=80';
-    }
-    if (n.contains('local')) {
-      return 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=256&q=80';
-    }
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=256&q=80';
+String categoryImageUrlFor(String name) {
+  final n = name.toLowerCase();
+  // Real photos for a nicer UI (stable, cached by the CDN).
+  // Note: Keep these lightweight (w=256) since they are used as small thumbnails.
+  if (n.contains('drink')) {
+    return 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=256&q=80';
   }
+  if (n.contains('dessert')) {
+    return 'https://images.unsplash.com/photo-1505253216365-03599a2dc57b?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('wrap') || n.contains('shawarma')) {
+    return 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('swallow') || n.contains('soup')) {
+    return 'https://images.unsplash.com/photo-1604908176997-125f25cc500f?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('grill') || n.contains('chicken')) {
+    return 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('side')) {
+    return 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('jollof') || n.contains('rice')) {
+    return 'https://images.unsplash.com/photo-1604908554100-279b9fba6c14?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('local')) {
+    return 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('burger')) {
+    return 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=256&q=80';
+  }
+  if (n.contains('pizza')) {
+    return 'https://images.unsplash.com/photo-1548365328-8b8490c6b2d5?auto=format&fit=crop&w=256&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=256&q=80';
+}
 
-  String _hintFor(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('drink')) return AppStrings.categoryHintDrinks;
-    if (n.contains('grill') || n.contains('chicken')) return AppStrings.categoryHintGrills;
-    if (n.contains('side')) return AppStrings.categoryHintSides;
-    if (n.contains('jollof') || n.contains('rice')) return AppStrings.categoryHintRice;
-    return AppStrings.categoryHintDefault;
-  }
+String categoryHintFor(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('drink')) return AppStrings.categoryHintDrinks;
+  if (n.contains('grill') || n.contains('chicken')) return AppStrings.categoryHintGrills;
+  if (n.contains('side')) return AppStrings.categoryHintSides;
+  if (n.contains('jollof') || n.contains('rice')) return AppStrings.categoryHintRice;
+  return AppStrings.categoryHintDefault;
 }

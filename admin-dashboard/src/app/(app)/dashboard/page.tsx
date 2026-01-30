@@ -1,6 +1,5 @@
 "use client";
 
-import { DollarSign, MessageSquare, Timer, XCircle } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { useDashboardKPIs, useOrdersRecent, useOrdersByHour, useRevenueByDay } f
 import { useChatsUnread } from "@/lib/queries/chats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmojiIcon } from "@/components/ui/emoji-icon";
 
 export default function DashboardPage() {
   const kpis = useDashboardKPIs();
@@ -30,11 +30,36 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <KPI title="Today orders" value={kpis.data?.todayOrders} loading={kpis.isLoading} icon={<Timer className="h-4 w-4" />} />
-        <KPI title="Revenue" value={kpis.data ? `₵${kpis.data.todayRevenue.toFixed(2)}` : undefined} loading={kpis.isLoading} icon={<DollarSign className="h-4 w-4" />} />
-        <KPI title="Avg prep time" value={kpis.data ? `${Math.round(kpis.data.avgPrepMin)}m` : undefined} loading={kpis.isLoading} icon={<Timer className="h-4 w-4" />} />
-        <KPI title="Cancellations" value={kpis.data?.todayCancelled} loading={kpis.isLoading} icon={<XCircle className="h-4 w-4" />} />
-        <KPI title="Active chats" value={unread.data?.activeChats} loading={unread.isLoading} icon={<MessageSquare className="h-4 w-4" />} />
+        <KPI
+          title="Today orders"
+          value={kpis.data?.todayOrders}
+          loading={kpis.isLoading}
+          icon={<EmojiIcon code="1f35d" alt="Orders" />}
+        />
+        <KPI
+          title="Revenue"
+          value={kpis.data ? `₵${kpis.data.todayRevenue.toFixed(2)}` : undefined}
+          loading={kpis.isLoading}
+          icon={<EmojiIcon code="1f4b8" alt="Revenue" />}
+        />
+        <KPI
+          title="Avg prep time"
+          value={kpis.data ? `${Math.round(kpis.data.avgPrepMin)}m` : undefined}
+          loading={kpis.isLoading}
+          icon={<EmojiIcon code="23f2" alt="Time" />}
+        />
+        <KPI
+          title="Cancellations"
+          value={kpis.data?.todayCancelled}
+          loading={kpis.isLoading}
+          icon={<EmojiIcon code="1f6ab" alt="Cancelled" />}
+        />
+        <KPI
+          title="Active chats"
+          value={unread.data?.activeChats}
+          loading={unread.isLoading}
+          icon={<EmojiIcon code="2615" alt="Chats" />}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -140,10 +165,12 @@ export default function DashboardPage() {
 
 function KPI({ title, value, loading, icon }: { title: string; value?: React.ReactNode; loading: boolean; icon: React.ReactNode }) {
   return (
-    <Card>
+    <Card className="transition-transform motion-safe:hover:-translate-y-0.5">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm font-semibold text-muted-foreground">{title}</CardTitle>
-        <div className="text-muted-foreground">{icon}</div>
+        <div className="grid h-9 w-9 place-items-center rounded-[12px] bg-secondary text-muted-foreground">
+          {icon}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold tracking-tight">{value ?? "—"}</div>}

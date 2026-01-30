@@ -5,7 +5,8 @@ import '../../domain/entities/address.dart';
 import '../../domain/repositories/address_repository.dart';
 
 class AddressProvider extends ChangeNotifier {
-  AddressProvider({required AddressRepository repository}) : _repository = repository;
+  AddressProvider({required AddressRepository repository})
+    : _repository = repository;
 
   final AddressRepository _repository;
 
@@ -19,14 +20,18 @@ class AddressProvider extends ChangeNotifier {
   String? get error => _error;
   List<Address> get addresses => _addresses;
 
-  Address? get defaultAddress => _addresses.where((a) => a.isDefault).cast<Address?>().firstOrNull;
+  Address? get defaultAddress =>
+      _addresses.where((a) => a.isDefault).cast<Address?>().firstOrNull;
 
   void setUserId(String? userId) {
     if (_userId == userId) return;
     _userId = userId;
     _addresses = const [];
     _error = null;
-    AppLogger.d('set_user_id(${userId == null ? 'null' : 'set'})', tag: 'address');
+    AppLogger.d(
+      'set_user_id(${userId == null ? 'null' : 'set'})',
+      tag: 'address',
+    );
     notifyListeners();
 
     if (userId != null) {
@@ -49,7 +54,12 @@ class AddressProvider extends ChangeNotifier {
       _addresses = await _repository.fetchMyAddresses(userId: userId);
       AppLogger.i('refresh_ok(count=${_addresses.length})', tag: 'address');
     } catch (error, stackTrace) {
-      AppLogger.e('refresh_failed', tag: 'address', error: error, stackTrace: stackTrace);
+      AppLogger.e(
+        'refresh_failed',
+        tag: 'address',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _error = error.toString();
     } finally {
       _isLoading = false;
@@ -104,10 +114,18 @@ class AddressProvider extends ChangeNotifier {
       }
 
       _addresses = await _repository.fetchMyAddresses(userId: userId);
-      AppLogger.i('save_address_ok(count=${_addresses.length})', tag: 'address');
+      AppLogger.i(
+        'save_address_ok(count=${_addresses.length})',
+        tag: 'address',
+      );
       return true;
     } catch (error, stackTrace) {
-      AppLogger.e('save_address_failed', tag: 'address', error: error, stackTrace: stackTrace);
+      AppLogger.e(
+        'save_address_failed',
+        tag: 'address',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _error = error.toString();
       return false;
     } finally {
@@ -130,9 +148,17 @@ class AddressProvider extends ChangeNotifier {
     try {
       await _repository.deleteAddress(id: id, userId: userId);
       _addresses = await _repository.fetchMyAddresses(userId: userId);
-      AppLogger.i('delete_address_ok(count=${_addresses.length})', tag: 'address');
+      AppLogger.i(
+        'delete_address_ok(count=${_addresses.length})',
+        tag: 'address',
+      );
     } catch (error, stackTrace) {
-      AppLogger.e('delete_address_failed', tag: 'address', error: error, stackTrace: stackTrace);
+      AppLogger.e(
+        'delete_address_failed',
+        tag: 'address',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _error = error.toString();
     } finally {
       _isLoading = false;
@@ -156,7 +182,12 @@ class AddressProvider extends ChangeNotifier {
       _addresses = await _repository.fetchMyAddresses(userId: userId);
       AppLogger.i('set_default_ok(count=${_addresses.length})', tag: 'address');
     } catch (error, stackTrace) {
-      AppLogger.e('set_default_failed', tag: 'address', error: error, stackTrace: stackTrace);
+      AppLogger.e(
+        'set_default_failed',
+        tag: 'address',
+        error: error,
+        stackTrace: stackTrace,
+      );
       _error = error.toString();
     } finally {
       _isLoading = false;

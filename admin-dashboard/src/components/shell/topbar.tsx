@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MobileSidebar } from "@/components/shell/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +17,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProfile } from "@/lib/queries/profile";
-import { useNotifications } from "@/lib/queries/notifications";
+import { useNotifications, useRealtimeNotifications } from "@/lib/queries/notifications";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function Topbar() {
   const profile = useProfile();
   const notifications = useNotifications();
+  useRealtimeNotifications();
 
   const me = profile.data;
   const unread = (notifications.data ?? []).filter((n) => !n.is_read).length;
@@ -37,7 +39,7 @@ export function Topbar() {
     <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b bg-background/75 px-4 py-3 backdrop-blur lg:px-6">
       <div className="flex items-center gap-3">
         <div className="lg:hidden">
-          {/* Sidebar button is rendered inside <Sidebar /> */}
+          <MobileSidebar />
         </div>
 
         <div className="hidden md:flex md:w-[380px]">
@@ -93,7 +95,12 @@ export function Topbar() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} onClick={() => toast.message("Settings coming soon")}>
+            <DropdownMenuItem
+              onSelect={(e) => e.preventDefault()}
+              onClick={() => {
+                window.location.href = "/settings";
+              }}
+            >
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
