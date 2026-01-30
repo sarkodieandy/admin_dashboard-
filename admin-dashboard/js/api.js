@@ -89,6 +89,24 @@ export async function deleteAddon(id) {
   return supabase.from("item_addons").delete().eq("id", id);
 }
 
+export async function fetchCustomers(limit = 200) {
+  return supabase.from("profiles").select("id,name,phone,created_at").order("created_at", { ascending: false }).limit(limit);
+}
+
+export async function fetchOrdersByUsers(userIds = []) {
+  if (!userIds.length) return { data: [], error: null };
+  return supabase
+    .from("orders")
+    .select("id,user_id,total,status,payment_method,created_at")
+    .in("user_id", userIds)
+    .order("created_at", { ascending: false })
+    .limit(500);
+}
+
+export async function fetchAddressesForUser(userId) {
+  return supabase.from("addresses").select("label,address,landmark,created_at").eq("user_id", userId).order("created_at", { ascending: false });
+}
+
 export async function fetchChats(limit = 50) {
   return supabase.from("chats").select("id,order_id,created_at").order("created_at", { ascending: false }).limit(limit);
 }
