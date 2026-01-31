@@ -168,8 +168,32 @@ export async function fetchNotifications() {
     .limit(30);
 }
 
+export async function markNotificationRead(id) {
+  return supabase.from("staff_notifications").update({ is_read: true }).eq("id", id);
+}
+
+export async function markAllNotificationsRead() {
+  return supabase.from("staff_notifications").update({ is_read: true }).eq("is_read", false);
+}
+
 export async function fetchRiders() {
-  return supabase.from("profiles").select("id,name,phone,role").eq("role", "rider");
+  return supabase.from("profiles").select("id,name,phone,role,created_at").eq("role", "rider");
+}
+
+export async function fetchPromos(limit = 200) {
+  return supabase.from("promos").select("*").order("created_at", { ascending: false }).limit(limit);
+}
+
+export async function insertPromo(payload) {
+  return supabase.from("promos").insert(payload);
+}
+
+export async function updatePromo(id, payload) {
+  return supabase.from("promos").update(payload).eq("id", id);
+}
+
+export async function fetchReviews(limit = 200) {
+  return supabase.from("reviews").select("id,order_id,user_id,rating,comment,created_at").order("created_at", { ascending: false }).limit(limit);
 }
 
 export async function fetchOrdersForStatus(status) {
@@ -181,4 +205,19 @@ export async function exportOrdersCsv({ dateFrom, dateTo }) {
   if (dateFrom) q = q.gte("created_at", dateFrom);
   if (dateTo) q = q.lte("created_at", dateTo);
   return q;
+}
+
+export async function loadRestaurantSettings() {
+  // Optional table (safe fallback if migration not applied yet).
+  const res = await supabase.from("restaurant_settings").select("*").limit(1).maybeSingle();
+  if (res.error?.code === "42P01") return { data: null, error: null, missing: true };
+  return res;
+}
+
+export async function saveRestaurantSettings(payload) {
+  // Upsert singleton row (safe fallback if migration not applied yet).
+  const existing = await supabase.from("restaurant_settings").select("id").limit(1).maybeSingle();
+  if (existing.error?.code === "42P01") return { data: null, error: null, missing: true };
+  if (existing.data?.id) return supabase.from("restaurant_settings").update(payload).eq("id", existing.data.id);
+  return supabase.from("restaurant_settings").insert(payload);
 }

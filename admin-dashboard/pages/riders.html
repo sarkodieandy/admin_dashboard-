@@ -22,6 +22,9 @@
           <div class="font-bold">Riders</div>
           <div class="muted" style="font-size: var(--text-sm)">Assignments overview</div>
         </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+        </div>
       </div>
       <div class="page">
         <div class="card">
@@ -35,28 +38,30 @@
     </main>
   </div>
   <script type="module">
-    import { renderSidebar } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
-    import { createClient } from "../js/supabaseClient.js";
+    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime } from "../js/utils.js";
+    import { fetchRiders } from "../js/api.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("riders.html");
+    mountThemeToggle();
     await requireAuth();
-    const supabase = createClient();
+    mountNotifications({ supabase: getClient() });
     const tbody = document.querySelector("#ridersTable tbody");
     load();
 
     async function load() {
       tbody.innerHTML = `<tr><td colspan="4"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const { data, error } = await supabase.from("riders").select("name,phone,status,updated_at").limit(100);
+      const { data, error } = await fetchRiders();
       if (error) { tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${error.message}</td></tr>`; return; }
       if (!data || data.length===0) { tbody.innerHTML = `<tr><td colspan="4" class="muted">No riders</td></tr>`; return; }
       tbody.innerHTML = data.map(r=>`
         <tr>
           <td>${r.name||"—"}</td>
           <td>${r.phone||"—"}</td>
-          <td>${r.status||"—"}</td>
-          <td>${fmtDateTime(r.updated_at||"")}</td>
+          <td><span class="tag info">Rider</span></td>
+          <td class="muted text-sm">${fmtDateTime(r.created_at||"")}</td>
         </tr>`).join("");
     }
   </script>

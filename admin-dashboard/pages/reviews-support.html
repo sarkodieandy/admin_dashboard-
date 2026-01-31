@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reviews • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Reviews & Support</div>
+          <div class="muted" style="font-size: var(--text-sm)">Customer feedback</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <button class="btn ghost" id="reload">Reload</button>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card" style="padding:0;">
+          <table class="table" id="reviewsTable">
+            <thead>
+              <tr>
+                <th>Rating</th><th>Comment</th><th>Order</th><th>User</th><th>Date</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <div class="font-semibold">Support tickets</div>
+          <div class="muted text-sm">Not enabled in this app schema yet. If you want support tickets, we can add a table + RLS later.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
+    import { fetchReviews } from "../js/api.js";
+    import { fmtDateTime } from "../js/utils.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
+
+    renderSidebar("reviews-support.html");
+    mountThemeToggle();
+    await requireAuth();
+    mountNotifications({ supabase: getClient() });
+
+    document.getElementById("reload").addEventListener("click", load);
+
+    const tbody = document.querySelector("#reviewsTable tbody");
+    load();
+
+    async function load() {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await fetchReviews();
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message}</td></tr>`;
+        return;
+      }
+      const reviews = data || [];
+      if (!reviews.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">No reviews yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = reviews
+        .map((r) => `
+          <tr>
+            <td><span class="tag info">★ ${r.rating}</span></td>
+            <td>${escapeHtml(r.comment || "—")}</td>
+            <td>#${String(r.order_id || "").slice(0, 8)}</td>
+            <td>${String(r.user_id || "").slice(0, 8)}</td>
+            <td class="muted text-sm">${fmtDateTime(r.created_at)}</td>
+          </tr>
+        `)
+        .join("");
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
+

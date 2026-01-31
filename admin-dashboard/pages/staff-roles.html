@@ -22,6 +22,9 @@
           <div class="font-bold">Staff & Roles</div>
           <div class="muted" style="font-size: var(--text-sm)">Allowlist staff emails</div>
         </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+        </div>
       </div>
       <div class="page">
         <div class="card">
@@ -46,12 +49,15 @@
   </div>
   <div id="toast" class="toast"></div>
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fetchStaffAllowlist, upsertStaffAllowlist } from "../js/api.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("staff-roles.html");
+    mountThemeToggle();
     await requireAuth();
+    mountNotifications({ supabase: getClient() });
     document.getElementById("saveStaff").addEventListener("click", save);
     load();
 
