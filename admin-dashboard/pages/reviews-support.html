@@ -58,12 +58,21 @@
     renderSidebar("reviews-support.html");
     mountThemeToggle();
     const session = await requireAuth();
-    mountNotifications({ supabase: getClient() });
+    const supabase = getClient();
+    mountNotifications({ supabase });
 
     document.getElementById("reload").addEventListener("click", load);
 
     const tbody = document.querySelector("#reviewsTable tbody");
     load();
+
+    // Live updates: when customers submit a review, refresh the table
+    const reviewChannel = supabase
+      .channel("admin-reviews")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reviews" }, () => load())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "reviews" }, () => load());
+    reviewChannel.subscribe();
+    window.addEventListener("beforeunload", () => supabase.removeChannel(reviewChannel));
 
     async function load() {
       tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
