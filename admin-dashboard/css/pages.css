@@ -6,6 +6,7 @@
   padding: var(--space-4);
   max-width: 1280px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .flex-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

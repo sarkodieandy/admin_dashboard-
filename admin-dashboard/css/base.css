@@ -25,6 +25,7 @@ img { max-width: 100%; display: block; }
 .layout main {
   background: var(--color-bg);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 .page-enter {
   animation: fade-slide var(--dur-slow) var(--ease-soft);
