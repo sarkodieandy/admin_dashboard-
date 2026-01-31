@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +29,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   late final PageController _controller;
   int _index = 0;
+  DateTime? _pausedUntil;
+  Timer? _autoTimer;
 
   final _pages = const [
     _OnboardingPageData(
@@ -56,10 +60,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void initState() {
     super.initState();
     _controller = PageController();
+    _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) => _autoAdvance());
   }
 
   @override
   void dispose() {
+    _autoTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -97,6 +103,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  void _pauseAuto([Duration duration = const Duration(seconds: 8)]) {
+    _pausedUntil = DateTime.now().add(duration);
+  }
+
+  Future<void> _autoAdvance() async {
+    if (!mounted) return;
+    if (!_controller.hasClients) return;
+    if (_index >= _pages.length - 1) return;
+    final until = _pausedUntil;
+    if (until != null && DateTime.now().isBefore(until)) return;
+
+    await _controller.nextPage(
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -105,14 +128,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          PageView.builder(
-            controller: _controller,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemCount: _pages.length,
-            itemBuilder: (context, i) => _OnboardingPage(
-              data: _pages[i],
+          Listener(
+            onPointerDown: (_) => _pauseAuto(),
+            child: PageView.builder(
               controller: _controller,
-              index: i,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemCount: _pages.length,
+              itemBuilder: (context, i) => _OnboardingPage(
+                data: _pages[i],
+                controller: _controller,
+                index: i,
+              ),
             ),
           ),
           SafeArea(
