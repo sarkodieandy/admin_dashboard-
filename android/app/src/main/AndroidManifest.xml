@@ -14,7 +14,7 @@
     </queries>
 
     <application
-        android:label="finger_licking_customer"
+        android:label="Finger Licking Eats"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
