@@ -29,6 +29,12 @@
             <option value="orders">Sort: most orders</option>
             <option value="spend">Sort: highest spend</option>
           </select>
+          <select id="filterStatus" class="input" style="max-width:160px;">
+            <option value="">All</option>
+            <option value="vip">VIP</option>
+            <option value="flagged">Flagged</option>
+            <option value="new">New (≤2 orders)</option>
+          </select>
         </div>
       </div>
       <div class="page">
@@ -76,6 +82,7 @@
     document.getElementById("drawerClose").addEventListener("click", () => drawer.classList.remove("show"));
     document.getElementById("search").addEventListener("input", debounce(renderRows, 180));
     document.getElementById("sort").addEventListener("change", renderRows);
+    document.getElementById("filterStatus").addEventListener("change", renderRows);
 
     let customers = [];
     let aggregates = new Map(); // userId -> stats
@@ -109,6 +116,7 @@
     function renderRows() {
       const q = document.getElementById("search").value.trim().toLowerCase();
       const sort = document.getElementById("sort").value;
+      const filterStatus = document.getElementById("filterStatus").value;
       let rows = customers.filter((c) => {
         const phone = (c.phone || "").toLowerCase();
         const name = (c.name || "").toLowerCase();
@@ -121,6 +129,15 @@
         if (sort === "spend") return (aggB.spend || 0) - (aggA.spend || 0);
         return new Date(b.created_at) - new Date(a.created_at);
       });
+      rows = rows.filter((c) => {
+        const agg = aggregates.get(c.id) || {};
+        const status = deriveStatus(agg);
+        if (!filterStatus) return true;
+        if (filterStatus === "vip") return status === "VIP";
+        if (filterStatus === "flagged") return status === "Flagged";
+        if (filterStatus === "new") return (agg.totalOrders || 0) <= 2;
+        return true;
+      });
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="muted">No customers found</td></tr>`;
         return;
@@ -131,7 +148,8 @@
           const last = agg.lastOrder ? fmtDateTime(agg.lastOrder) : "—";
           const orders = agg.totalOrders || 0;
           const spend = agg.spend ? fmtMoney(agg.spend) : "—";
-          const status = orders >= 5 ? "VIP" : "Active";
+          const status = deriveStatus(agg);
+          const statusClass = status === "VIP" ? "info" : status === "Flagged" ? "danger" : "success";
           return `
           <tr data-id="${c.id}" class="clickable">
             <td>${c.name || "Guest"}</td>
@@ -139,12 +157,32 @@
             <td>${last}</td>
             <td>${orders}</td>
             <td>${spend}</td>
-            <td><span class="tag ${status==="VIP"?"info":"success"}">${status}</span></td>
-            <td><button class="btn ghost" data-view="${c.id}">View</button></td>
+            <td><span class="tag ${statusClass}">${status}</span></td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <a class="btn ghost" href="tel:${c.phone || ""}">Call</a>
+                <button class="btn ghost" data-chat="${c.id}">Chat</button>
+                <button class="btn ghost" data-view="${c.id}">View</button>
+              </div>
+            </td>
           </tr>`;
         })
         .join("");
       tbody.querySelectorAll("[data-view]").forEach((btn) => btn.addEventListener("click", () => openDrawer(btn.dataset.view)));
+      tbody.querySelectorAll("[data-chat]").forEach((btn) => btn.addEventListener("click", () => {
+        // Jump to chats page (order-based only)
+        window.location.href = "chats.html";
+      }));
+    }
+
+    function deriveStatus(agg) {
+      const orders = agg.totalOrders || 0;
+      const cancelRate = agg.totalOrders
+        ? Math.round(((agg.cancelled || 0) / agg.totalOrders) * 100)
+        : 0;
+      if (orders >= 5 && (agg.spend || 0) >= 500) return "VIP";
+      if (cancelRate >= 30 && orders >= 3) return "Flagged";
+      return "Active";
     }
 
     async function openDrawer(id) {
@@ -170,6 +208,7 @@
           <div class="flex-between text-sm"><span>Avg order</span><strong>${fmtMoney(avg)}</strong></div>
           <div class="flex-between text-sm"><span>Cancel rate</span><strong>${cancelRate}%</strong></div>
         </div>
+        ${activeOrderCard(orders)}
         <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
           <div class="font-semibold">Addresses</div>
           ${(addresses && addresses.length)
@@ -192,6 +231,28 @@
           <div class="font-semibold">Notes (local)</div>
           <textarea class="input" rows="3" placeholder="Prefers no pepper / call before arrival"></textarea>
           <small class="muted">Notes are not saved to server (RLS-safe placeholder).</small>
+        </div>
+      `;
+    }
+
+    function activeOrderCard(orders) {
+      const active = orders.find((o) => !["delivered", "cancelled"].includes(o.status));
+      if (!active) return "";
+      return `
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border); background:#f8fafc;">
+          <div class="flex-between">
+            <div class="font-semibold">Active Order</div>
+            <span class="tag info">${active.status}</span>
+          </div>
+          <div class="muted text-sm">#${active.id.slice(0,8)} • ${fmtDateTime(active.created_at)}</div>
+          <div class="flex-between" style="margin-top:8px;">
+            <div class="muted text-sm">${active.payment_method}</div>
+            <strong>${fmtMoney(active.total)}</strong>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <a class="btn primary" href="chats.html">Open Chat</a>
+            <a class="btn ghost" href="tel:${drawerPhone.textContent || ""}">Call</a>
+          </div>
         </div>
       `;
     }
