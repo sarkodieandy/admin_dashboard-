@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head>
+  <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Riders • Finger Licking Admin</title>
@@ -9,6 +9,66 @@
   <link rel="stylesheet" href="../css/components.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .riders-hero {
+      margin-bottom: var(--space-3);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(14,165,233,0.08));
+      border: 1px solid var(--color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .riders-hero__actions {
+      display: flex;
+      gap: 8px;
+    }
+    .riders-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: var(--space-3);
+    }
+    .stat-card {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      box-shadow: var(--shadow-xs);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+    }
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+    .riders-table-card {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-xs);
+    }
+    .riders-table__header {
+      margin-bottom: var(--space-2);
+    }
+    @media (max-width: 720px) {
+      .riders-hero {
+        flex-direction: column;
+      }
+      .riders-hero__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -28,27 +88,39 @@
         </div>
       </div>
       <div class="page">
-      <div class="card" style="margin-bottom: var(--space-3);">
-        <div class="flex-between" style="gap:12px;">
+        <div class="riders-hero">
           <div>
-            <div class="font-semibold">Manage riders</div>
-            <div class="muted text-sm">Add and store rider details so tracking + delivery info syncs across the app.</div>
+            <div class="font-semibold" style="font-size:1.3rem;">Manage rider dispatch</div>
+            <div class="muted text-sm">Create rider profiles here so admins can assign them to orders and surface their info in tracking.</div>
           </div>
-          <div class="flex" style="gap:8px;">
+          <div class="riders-hero__actions">
             <button class="btn ghost" id="openRiderHint">Need help?</button>
             <button class="btn primary" id="addRiderBtn">Add rider</button>
           </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="flex-between" style="margin-bottom: var(--space-2); gap:6px;">
-          <div>
-            <div class="font-semibold">Riders</div>
-            <div class="muted text-sm">Names, phones, and delivery notes</div>
+        <div class="riders-stats">
+          <div class="stat-card">
+            <div class="stat-label">Active</div>
+            <div class="stat-value" id="statActive">0</div>
           </div>
-          <span class="badge-dot" aria-hidden="true"></span>
+          <div class="stat-card">
+            <div class="stat-label">Inactive</div>
+            <div class="stat-value" id="statInactive">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total riders</div>
+            <div class="stat-value" id="statTotal">0</div>
+          </div>
         </div>
-        <table class="table" id="ridersTable">
+        <div class="card riders-table-card">
+          <div class="flex-between riders-table__header">
+            <div>
+              <div class="font-semibold">Riders</div>
+              <div class="muted text-sm">Names, phones, vehicles, and availability.</div>
+            </div>
+            <span class="badge-dot" aria-hidden="true"></span>
+          </div>
+          <table class="table" id="ridersTable">
             <thead>
               <tr>
                 <th>Name</th>
@@ -119,6 +191,9 @@
     const riderNote = document.getElementById("riderNote");
     const riderSubtitle = document.getElementById("riderModalSubtitle");
     const riderModalTitle = document.getElementById("riderModalTitle");
+    const statActive = document.getElementById("statActive");
+    const statInactive = document.getElementById("statInactive");
+    const statTotal = document.getElementById("statTotal");
     let riderMap = new Map();
     let editingRider = null;
 
@@ -183,8 +258,10 @@
       const { data, error } = await fetchRiders();
       if (error) {
         tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
+        updateStats([]);
         return;
       }
+      updateStats(data || []);
       if (!data || data.length === 0) {
         tbody.innerHTML = `
           <tr class="table-empty">
@@ -252,6 +329,15 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    function updateStats(riders = []) {
+      const list = riders || [];
+      const total = list.length;
+      const active = list.filter((r) => r.is_active).length;
+      statActive.textContent = active;
+      statInactive.textContent = Math.max(total - active, 0);
+      statTotal.textContent = total;
     }
   </script>
 </body>
