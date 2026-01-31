@@ -49,8 +49,8 @@ export function mountThemeToggle() {
   btn.id = "themeToggle";
   btn.className = "btn ghost";
   btn.style.position = "fixed";
-  btn.style.top = "14px";
-  btn.style.right = "14px";
+  btn.style.bottom = "16px";
+  btn.style.right = "16px";
   btn.style.zIndex = "80";
   const apply = (mode) => {
     document.documentElement.setAttribute("data-theme", mode);
