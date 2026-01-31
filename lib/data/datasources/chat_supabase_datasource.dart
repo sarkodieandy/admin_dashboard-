@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/chat_message_model.dart';
@@ -36,15 +38,69 @@ class ChatSupabaseDatasource {
   }
 
   Stream<List<ChatMessageModel>> watchMessages({required String chatId}) {
-    return _client
-        .from('chat_messages')
-        .stream(primaryKey: ['id'])
-        .eq('chat_id', chatId)
-        .order('created_at', ascending: true)
-        .order('id', ascending: true)
-        .map(
-          (rows) => rows.whereType<Map<String, dynamic>>().map(ChatMessageModel.fromJson).toList(),
-        );
+    // Realtime can occasionally be misconfigured for a project or blocked on some networks.
+    // We subscribe to realtime INSERTs and also keep a lightweight polling fallback so the UI stays fresh.
+    //
+    // This does not change any backend behavior (RLS still applies).
+    final controller = StreamController<List<ChatMessageModel>>.broadcast();
+
+    List<ChatMessageModel> last = const [];
+    Timer? poll;
+    RealtimeChannel? channel;
+
+    Future<void> refresh() async {
+      try {
+        final rows = await fetchMessages(chatId: chatId, limit: 200, offset: 0);
+        if (rows.isEmpty && last.isEmpty) return;
+        if (rows.length == last.length && rows.isNotEmpty && last.isNotEmpty) {
+          // Compare last id to avoid unnecessary emits.
+          if (rows.last.id == last.last.id) return;
+        }
+        last = rows;
+        if (!controller.isClosed) controller.add(rows);
+      } catch (e, st) {
+        if (!controller.isClosed) controller.addError(e, st);
+      }
+    }
+
+    controller.onListen = () {
+      // Initial load.
+      unawaited(refresh());
+
+      // Realtime insert subscription.
+      channel = _client
+          .channel('chat_messages:$chatId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'chat_messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'chat_id',
+              value: chatId,
+            ),
+            callback: (payload) {
+              // Re-fetch so ordering stays correct and RLS is respected.
+              unawaited(refresh());
+            },
+          );
+      channel!.subscribe();
+
+      // Poll fallback (kept light).
+      poll = Timer.periodic(const Duration(seconds: 4), (_) => unawaited(refresh()));
+    };
+
+    controller.onCancel = () async {
+      poll?.cancel();
+      poll = null;
+      if (channel != null) {
+        await _client.removeChannel(channel!);
+        channel = null;
+      }
+      await controller.close();
+    };
+
+    return controller.stream;
   }
 
   Future<void> sendMessage({
