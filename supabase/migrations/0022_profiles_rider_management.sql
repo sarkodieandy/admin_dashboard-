@@ -8,10 +8,13 @@ drop policy if exists "profiles_update_staff" on public.profiles;
 create policy "profiles_update_staff"
 on public.profiles
 for update
-using (
-  public.is_staff()
-  and role = 'rider'::public.app_role
-)
+using (public.is_staff() and role = 'rider'::public.app_role)
+with check (public.is_staff() and role = 'rider'::public.app_role);
+
+drop policy if exists "profiles_insert_rider_staff" on public.profiles;
+create policy "profiles_insert_rider_staff"
+on public.profiles
+for insert
 with check (
   public.is_staff()
   and role = 'rider'::public.app_role

@@ -188,6 +188,14 @@ export async function updateRider(id, payload) {
   return supabase.from("profiles").update(payload).eq("id", id);
 }
 
+export async function insertRider(payload) {
+  return supabase
+    .from("profiles")
+    .insert({ ...payload, role: "rider" })
+    .select("id,name,phone,role,default_delivery_note,created_at")
+    .maybeSingle();
+}
+
 export async function fetchPromos(limit = 200) {
   return supabase.from("promos").select("*").order("created_at", { ascending: false }).limit(limit);
 }
