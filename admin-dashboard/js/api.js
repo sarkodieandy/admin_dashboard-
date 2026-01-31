@@ -107,6 +107,18 @@ export async function fetchAddressesForUser(userId) {
   return supabase.from("addresses").select("label,address,landmark,created_at").eq("user_id", userId).order("created_at", { ascending: false });
 }
 
+export async function fetchOrdersRange({ dateFrom, dateTo, type, payment_method } = {}) {
+  let q = supabase
+    .from("orders")
+    .select("id,user_id,total,delivery_fee,discount,status,payment_method,type,created_at", { count: "exact" })
+    .order("created_at", { ascending: true });
+  if (dateFrom) q = q.gte("created_at", dateFrom);
+  if (dateTo) q = q.lte("created_at", dateTo);
+  if (type) q = q.eq("type", type);
+  if (payment_method) q = q.eq("payment_method", payment_method);
+  return q.limit(2000); // client-side aggregation
+}
+
 export async function fetchChats(limit = 50) {
   return supabase.from("chats").select("id,order_id,created_at").order("created_at", { ascending: false }).limit(limit);
 }
