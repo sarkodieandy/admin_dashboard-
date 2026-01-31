@@ -12,88 +12,43 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
 </head>
 <body>
-  <div class="auth-shell">
-    <section class="auth-hero">
-      <div class="auth-brand">
-        <div class="auth-logo">FL</div>
-        <div>
-          <div class="font-extrabold">Finger Licking</div>
-          <div class="muted text-sm">Restaurant Admin</div>
-        </div>
-      </div>
-
-      <h1 class="auth-title">Run service like a pro.</h1>
-      <div class="muted auth-subtitle">
-        Manage orders in real time, chat with customers, update the menu, and track performance — all from one dashboard.
-      </div>
-
-      <div class="auth-bullets" aria-hidden="true">
-        <div class="auth-bullet">
-          <span class="dot"></span>
+  <div class="layout" style="grid-template-columns: 1fr; min-height:100vh;">
+    <main style="display:flex; align-items:center; justify-content:center; padding:20px;">
+      <div class="card" style="max-width:380px; width:100%; padding:24px;">
+        <div class="flex-between">
           <div>
-            <div class="font-semibold">Realtime operations</div>
-            <div class="muted text-sm">New orders, status updates, and message alerts.</div>
-          </div>
-        </div>
-        <div class="auth-bullet">
-          <span class="dot"></span>
-          <div>
-            <div class="font-semibold">Secure staff access</div>
-            <div class="muted text-sm">Only allowlisted staff/admin accounts can sign in.</div>
-          </div>
-        </div>
-        <div class="auth-bullet">
-          <span class="dot"></span>
-          <div>
-            <div class="font-semibold">Premium, simple UI</div>
-            <div class="muted text-sm">Built for fast kitchen + front-desk workflows.</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="auth-panel">
-      <div class="auth-card">
-        <header>
-          <div>
-            <h2>Sign in</h2>
-            <div class="muted text-sm hint">Use your staff/admin email and password.</div>
+            <div class="font-extrabold" style="font-size:20px; letter-spacing:0.2px;">Finger Licking</div>
+            <div class="muted text-sm">Admin sign in</div>
           </div>
           <button class="btn ghost icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme">🌓</button>
-        </header>
+        </div>
 
-        <form id="loginForm" novalidate>
-          <div class="input-row">
+        <div id="fileWarn" class="card" style="margin-top:14px; padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.08); display:none;">
+          <div class="font-semibold">You opened this from your files.</div>
+          <div class="muted text-sm">This dashboard must be served over HTTP (modules won’t load on <code>file://</code>).</div>
+          <div class="muted text-sm" style="margin-top:6px;">Run: <code>python3 -m http.server 5173</code> then open <code>http://localhost:5173/admin-dashboard/</code></div>
+        </div>
+
+        <p class="muted" style="margin:14px 0 16px 0;">Staff/Admin accounts only.</p>
+        <form id="loginForm" class="space-y">
+          <div style="display:flex; flex-direction:column; gap:6px;">
             <label class="label" for="email">Email</label>
-            <input id="email" name="email" type="email" class="input" autocomplete="email" placeholder="name@restaurant.com" required />
+            <input id="email" name="email" type="email" required class="input" autocomplete="email" />
           </div>
-
-          <div class="input-row">
+          <div style="display:flex; flex-direction:column; gap:6px;">
             <label class="label" for="password">Password</label>
-            <div class="input-group">
-              <input id="password" name="password" type="password" class="input" autocomplete="current-password" placeholder="••••••••" required />
-              <button class="input-affix" id="togglePw" type="button" aria-label="Show password" title="Show password">👁️</button>
-            </div>
+            <input id="password" name="password" type="password" required class="input" autocomplete="current-password" />
           </div>
-
-          <div class="auth-actions">
-            <label style="display:flex; align-items:center; gap:8px;">
-              <input type="checkbox" id="remember" checked />
-              <span class="muted text-sm">Stay signed in</span>
-            </label>
-            <a class="muted text-sm" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">Forgot password?</a>
-          </div>
-
           <button class="btn primary" id="submitBtn" type="submit" style="width:100%;">
             <span id="submitLabel">Sign in</span>
           </button>
-          <div id="loginError" class="auth-error text-sm" role="status" aria-live="polite"></div>
-          <div class="auth-legal muted text-xs">
-            By signing in, you agree to follow staff access policies. Customers should use the mobile app.
-          </div>
         </form>
+        <div id="loginError" class="muted text-sm" style="margin-top:10px; color: var(--color-danger); min-height: 18px;"></div>
+        <div class="muted text-xs" style="margin-top:12px;">
+          If you can’t sign in, ask an admin to allowlist your email in <strong>Staff & Roles</strong>.
+        </div>
       </div>
-    </section>
+    </main>
   </div>
 
   <script type="module">
@@ -104,19 +59,16 @@
     const errorEl = document.getElementById("loginError");
     const submitBtn = document.getElementById("submitBtn");
     const submitLabel = document.getElementById("submitLabel");
-    const pw = document.getElementById("password");
 
     mountThemeToggle();
     document.getElementById("themeBtn").addEventListener("click", () => {
       document.getElementById("themeToggle")?.click?.();
     });
 
-    document.getElementById("togglePw").addEventListener("click", () => {
-      const next = pw.type === "password" ? "text" : "password";
-      pw.type = next;
-      document.getElementById("togglePw").textContent = next === "password" ? "👁️" : "🙈";
-      document.getElementById("togglePw").setAttribute("aria-label", next === "password" ? "Show password" : "Hide password");
-    });
+    // Warn when opened via file:// (modules + imports will be blocked)
+    if (location.protocol === "file:") {
+      document.getElementById("fileWarn").style.display = "block";
+    }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -140,6 +92,22 @@
         submitLabel.textContent = "Sign in";
         return;
       }
+
+      // Ensure staff-only access is clear (no confusing redirect loops).
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+        if (profile?.role && !["admin", "staff"].includes(profile.role)) {
+          await supabase.auth.signOut();
+          errorEl.textContent = "This account is not staff/admin. Ask admin to allowlist your email.";
+          submitBtn.classList.remove("loading");
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Sign in";
+          return;
+        }
+      }
+
       showToast("Signed in");
       window.location.href = "dashboard.html";
     });
