@@ -57,7 +57,7 @@
 
     renderSidebar("reviews-support.html");
     mountThemeToggle();
-    await requireAuth();
+    const session = await requireAuth();
     mountNotifications({ supabase: getClient() });
 
     document.getElementById("reload").addEventListener("click", load);
@@ -69,12 +69,27 @@
       tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
       const { data, error } = await fetchReviews();
       if (error) {
+        const isMissing = error.code === "42P01";
+        const isRls = error.code === "42501" || /permission|policy|rls/i.test(error.message || "");
+        if (isMissing) {
+          tbody.innerHTML = `<tr><td colspan="5" class="muted">Reviews table is missing. Apply your Supabase migrations (at least <code>0001_init.sql</code>).</td></tr>`;
+          return;
+        }
+        if (isRls) {
+          tbody.innerHTML = `<tr><td colspan="5" class="muted">Reviews are blocked by RLS for staff. Apply migration <code>0020_staff_reviews_read.sql</code> to allow staff/admin to read reviews.</td></tr>`;
+          return;
+        }
         tbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message}</td></tr>`;
         return;
       }
       const reviews = data || [];
       if (!reviews.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="muted">No reviews yet.</td></tr>`;
+        const role = session?.profile?.role;
+        if (role === "admin" || role === "staff") {
+          tbody.innerHTML = `<tr><td colspan="5" class="muted">No reviews visible to this account. If customers have reviews, apply <code>0020_staff_reviews_read.sql</code> so staff/admin can see them.</td></tr>`;
+        } else {
+          tbody.innerHTML = `<tr><td colspan="5" class="muted">No reviews yet.</td></tr>`;
+        }
         return;
       }
       tbody.innerHTML = reviews
@@ -101,4 +116,3 @@
   </script>
 </body>
 </html>
-
