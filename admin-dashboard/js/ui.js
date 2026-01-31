@@ -42,3 +42,26 @@ export function renderTopbar(title) {
   const t = document.getElementById("pageTitle");
   if (t) t.textContent = title;
 }
+
+export function mountThemeToggle() {
+  if (document.getElementById("themeToggle")) return;
+  const btn = document.createElement("button");
+  btn.id = "themeToggle";
+  btn.className = "btn ghost";
+  btn.style.position = "fixed";
+  btn.style.top = "14px";
+  btn.style.right = "14px";
+  btn.style.zIndex = "80";
+  const apply = (mode) => {
+    document.documentElement.setAttribute("data-theme", mode);
+    localStorage.setItem("theme", mode);
+    btn.textContent = mode === "dark" ? "☀️ Light" : "🌙 Dark";
+  };
+  btn.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    apply(current === "light" ? "dark" : "light");
+  });
+  const saved = localStorage.getItem("theme") || "light";
+  apply(saved);
+  document.body.appendChild(btn);
+}

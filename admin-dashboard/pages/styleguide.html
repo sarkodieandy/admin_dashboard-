@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Style Guide • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body class="page-enter">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Style Guide</div>
+          <div class="muted" style="font-size: var(--text-sm)">Design tokens & components</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card-grid">
+          <div class="card">
+            <div class="font-bold">Buttons</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <button class="btn primary">Primary</button>
+              <button class="btn">Default</button>
+              <button class="btn ghost">Ghost</button>
+              <button class="btn danger">Danger</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="font-bold">Chips & Badges</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <span class="chip">Chip</span>
+              <span class="badge">Badge</span>
+              <span class="tag success">Success</span>
+              <span class="tag warning">Warning</span>
+              <span class="tag info">Info</span>
+              <span class="tag danger">Danger</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="font-bold">Inputs</div>
+            <input class="input" placeholder="Text input" style="margin-top:8px;" />
+            <textarea class="input" rows="2" placeholder="Textarea" style="margin-top:8px;"></textarea>
+          </div>
+          <div class="card">
+            <div class="font-bold">Skeleton</div>
+            <div class="skeleton" style="height:18px; width:60%; border-radius:8px;"></div>
+            <div class="skeleton" style="height:18px; width:80%; border-radius:8px; margin-top:8px;"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="font-bold">Typography</div>
+          <div style="margin-top:8px; font-size: var(--text-3xl); font-weight: 700;">Heading 1</div>
+          <div style="margin-top:4px; font-size: var(--text-2xl); font-weight: 700;">Heading 2</div>
+          <div style="margin-top:4px; font-size: var(--text-xl); font-weight: 600;">Heading 3</div>
+          <div style="margin-top:4px; font-size: var(--text-md);">Body text with muted <span class="muted">secondary</span>.</div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="font-bold">Table</div>
+          <table class="table" style="margin-top:8px;">
+            <thead><tr><th>Column</th><th>Column</th><th>Column</th></tr></thead>
+            <tbody>
+              <tr><td>Row 1</td><td>Data</td><td>More</td></tr>
+              <tr><td>Row 2</td><td>Data</td><td>More</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    renderSidebar("styleguide.html");
+    mountThemeToggle();
+    await requireAuth();
+  </script>
+</body>
+</html>
