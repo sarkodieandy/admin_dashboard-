@@ -30,7 +30,7 @@
             <option>Airport Branch</option>
           </select>
           <button class="btn ghost" title="Search">🔍</button>
-          <button class="btn ghost" title="Notifications">🔔</button>
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <div style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#60a5fa,#2563eb); display:grid; place-items:center; color:white; font-weight:700;">A</div>
         </div>
       </div>
@@ -61,6 +61,10 @@
             <div class="muted text-sm">Active Chats</div>
             <div id="kpi-chats" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
           </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Cancellations</div>
+            <div id="kpi-cancel" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+          </div>
         </div>
 
         <div class="layout-shell" style="margin-top: var(--space-4); gap: var(--space-4); align-items: flex-start;">
@@ -87,29 +91,33 @@
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth } from "../js/auth.js";
     import { fetchRecentOrders } from "../js/api.js";
-    import { statusLabel } from "../js/utils.js";
+    import { fmtMoney, statusLabel, debug } from "../js/utils.js";
     import { createClient } from "../js/supabaseClient.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("dashboard.html");
     mountThemeToggle();
     const supabase = createClient();
 
     await requireAuth();
+    mountNotifications({ supabase });
     loadKpis();
     loadRecent();
     drawChart();
 
     async function loadKpis() {
       const today = new Date(); today.setHours(0,0,0,0);
-      const { data } = await supabase.from("orders").select("total,status").gte("created_at", today.toISOString());
+      const { data, error } = await supabase.from("orders").select("total,status").gte("created_at", today.toISOString());
+      if (error) debug("kpi orders error", error);
       const orders = data?.length || 0;
       const revenue = data?.reduce((s,o)=>s+Number(o.total||0),0)||0;
       const cancel = data?.filter(o=>o.status==='cancelled').length || 0;
       document.getElementById("kpi-orders").textContent = orders;
-      document.getElementById("kpi-revenue").textContent = `GH₵ ${revenue.toFixed(2)}`;
+      document.getElementById("kpi-revenue").textContent = fmtMoney(revenue);
       document.getElementById("kpi-cancel").textContent = cancel;
-      const { data: openChats } = await supabase.from("conversations").select("id").is("closed_at", null);
-      document.getElementById("kpi-chats").textContent = openChats?.length || 0;
+      const { data: chats, error: chatErr } = await supabase.from("chats").select("id");
+      if (chatErr) debug("kpi chats error", chatErr);
+      document.getElementById("kpi-chats").textContent = chats?.length || 0;
       document.getElementById("kpi-time").textContent = "28 min";
     }
 
@@ -122,14 +130,14 @@
       list.innerHTML = data.map(o=>`
         <div class="flex-between" style="padding:12px; border:1px solid var(--color-border); border-radius: var(--radius-sm); background:var(--color-panel); box-shadow: var(--shadow-xs);">
           <div style="display:flex; gap:12px; align-items:center;">
-            <div style="width:34px; height:34px; border-radius:50%; background:#e2e8f0; display:grid; place-items:center; font-weight:700;">${o.customer?.[0] || "C"}</div>
+            <div style="width:34px; height:34px; border-radius:50%; background:#e2e8f0; display:grid; place-items:center; font-weight:800;">${o.id.slice(0,1).toUpperCase()}</div>
             <div>
               <div class="font-semibold">#${o.id.slice(0,8)}</div>
               <div class="muted text-sm">${new Date(o.created_at).toLocaleString()}</div>
             </div>
           </div>
           <div class="chip" style="background:${statusColor(o.status)}; color:#0f172a;">${statusLabel(o.status)}</div>
-          <div class="font-bold">GH₵ ${Number(o.total||0).toFixed(2)}</div>
+          <div class="font-bold">${fmtMoney(o.total)}</div>
         </div>`).join("");
     }
 
@@ -148,7 +156,8 @@
 
     async function drawChart() {
       const today = new Date(); today.setHours(0,0,0,0);
-      const { data } = await supabase.from("orders").select("created_at").gte("created_at", today.toISOString());
+      const { data, error } = await supabase.from("orders").select("created_at").gte("created_at", today.toISOString());
+      if (error) debug("chart error", error);
       const buckets = Array.from({length:24},(_,h)=>({h, c:0}));
       (data||[]).forEach(o=>{
         const hour = new Date(o.created_at).getHours();

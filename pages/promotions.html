@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Promotions • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Promotions</div>
+          <div class="muted" style="font-size: var(--text-sm)">Coupons & discounts</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <button class="btn primary" id="newPromo">New promo</button>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card" style="padding:0;">
+          <table class="table" id="promoTable">
+            <thead>
+              <tr>
+                <th>Code</th><th>Type</th><th>Value</th><th>Min subtotal</th><th>Expires</th><th>Active</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="modal" class="modal-backdrop">
+    <div class="modal">
+      <header>
+        <div>
+          <div class="font-bold" id="modalTitle">New promo</div>
+          <div class="muted text-sm">Codes are case-insensitive</div>
+        </div>
+        <button class="btn ghost" id="closeModal">✕</button>
+      </header>
+      <form id="promoForm">
+        <label class="label">Code</label>
+        <input class="input" id="code" placeholder="WELCOME10" required />
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+          <div>
+            <label class="label">Type</label>
+            <select class="input" id="type">
+              <option value="percent">Percent</option>
+              <option value="fixed">Fixed</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Value</label>
+            <input class="input" id="value" type="number" step="0.01" required />
+          </div>
+        </div>
+        <label class="label">Min subtotal</label>
+        <input class="input" id="minSubtotal" type="number" step="0.01" />
+        <label class="label">Expires at</label>
+        <input class="input" id="expiresAt" type="date" />
+        <label class="chip-btn" id="isActive">Active</label>
+        <button class="btn primary" type="submit">Save</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
+    import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
+    import { fmtMoney } from "../js/utils.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
+
+    renderSidebar("promotions.html");
+    mountThemeToggle();
+    await requireAuth();
+    mountNotifications({ supabase: getClient() });
+
+    const tbody = document.querySelector("#promoTable tbody");
+    const modal = document.getElementById("modal");
+    const form = document.getElementById("promoForm");
+    const activeToggle = document.getElementById("isActive");
+    let editingId = null;
+    let active = true;
+
+    document.getElementById("newPromo").addEventListener("click", () => openModal());
+    document.getElementById("closeModal").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => e.target === modal && closeModal());
+    activeToggle.addEventListener("click", () => {
+      active = !active;
+      activeToggle.classList.toggle("active", active);
+      activeToggle.textContent = active ? "Active" : "Inactive";
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        code: document.getElementById("code").value.trim(),
+        type: document.getElementById("type").value,
+        value: Number(document.getElementById("value").value || 0),
+        min_subtotal: Number(document.getElementById("minSubtotal").value || 0),
+        expires_at: document.getElementById("expiresAt").value ? new Date(document.getElementById("expiresAt").value).toISOString() : null,
+        is_active: active,
+      };
+      const res = editingId ? await updatePromo(editingId, payload) : await insertPromo(payload);
+      if (res.error) return showToast(res.error.message);
+      showToast(editingId ? "Promo updated" : "Promo created");
+      closeModal();
+      load();
+    });
+
+    load();
+
+    async function load() {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await fetchPromos();
+      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
+      const promos = data || [];
+      if (!promos.length) { tbody.innerHTML = `<tr><td colspan="7" class="muted">No promos yet</td></tr>`; return; }
+      tbody.innerHTML = promos.map((p) => `
+        <tr>
+          <td><strong>${p.code}</strong></td>
+          <td>${p.type}</td>
+          <td>${p.type === "percent" ? `${Number(p.value || 0)}%` : fmtMoney(p.value)}</td>
+          <td>${fmtMoney(p.min_subtotal || 0)}</td>
+          <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
+          <td><span class="tag ${p.is_active ? "success" : ""}">${p.is_active ? "Active" : "Off"}</span></td>
+          <td><button class="btn ghost" data-edit="${p.id}">Edit</button></td>
+        </tr>
+      `).join("");
+      tbody.querySelectorAll("[data-edit]").forEach((btn) =>
+        btn.addEventListener("click", () => openModal(promos.find((p) => p.id === btn.dataset.edit)))
+      );
+    }
+
+    function openModal(promo) {
+      editingId = promo?.id || null;
+      document.getElementById("modalTitle").textContent = editingId ? "Edit promo" : "New promo";
+      document.getElementById("code").value = promo?.code || "";
+      document.getElementById("type").value = promo?.type || "percent";
+      document.getElementById("value").value = promo?.value ?? "";
+      document.getElementById("minSubtotal").value = promo?.min_subtotal ?? "";
+      document.getElementById("expiresAt").value = promo?.expires_at ? new Date(promo.expires_at).toISOString().slice(0, 10) : "";
+      active = promo?.is_active ?? true;
+      activeToggle.classList.toggle("active", active);
+      activeToggle.textContent = active ? "Active" : "Inactive";
+      modal.classList.add("show");
+    }
+
+    function closeModal() {
+      modal.classList.remove("show");
+      editingId = null;
+    }
+  </script>
+</body>
+</html>
+

@@ -24,6 +24,7 @@
           <div class="muted" style="font-size: var(--text-sm)">Categories • Items • Add-ons</div>
         </div>
         <div style="margin-left:auto; display:flex; gap:8px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <button id="addItemBtn" class="btn primary">Add Item</button>
           <button id="addCategoryBtn" class="btn">Add Category</button>
           <button id="addAddonBtn" class="btn">Add Add-on</button>
@@ -139,8 +140,8 @@
 
   <div id="toast" class="toast"></div>
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import {
       fetchMenu,
       updateMenuItem,
@@ -152,9 +153,12 @@
       deleteAddon,
     } from "../js/api.js";
     import { fmtMoney } from "../js/utils.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("menu.html");
+    mountThemeToggle();
     await requireAuth();
+    mountNotifications({ supabase: getClient() });
 
     const catList = document.getElementById("catList");
     const filterCategory = document.getElementById("filterCategory");

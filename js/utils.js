@@ -7,6 +7,12 @@ export const debounce = (fn, wait = 250) => {
     t = setTimeout(() => fn(...args), wait);
   };
 };
+export const debugEnabled = () => localStorage.getItem("admin_debug") === "1";
+export const debug = (...args) => {
+  if (!debugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.log("[admin]", ...args);
+};
 export const statusLabel = (s) => {
   const map = {
     placed: "Placed",

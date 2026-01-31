@@ -22,8 +22,20 @@
           <div class="font-bold">Settings</div>
           <div class="muted" style="font-size: var(--text-sm)">Business rules & preferences</div>
         </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+        </div>
       </div>
       <div class="page">
+        <div class="card" style="margin-bottom:14px;">
+          <div class="flex-between" style="gap:10px;">
+            <div>
+              <div class="font-semibold">Sync status</div>
+              <div class="muted text-sm" id="syncStatus">Loading…</div>
+            </div>
+            <label class="chip-btn" id="toggleDebug">Debug off</label>
+          </div>
+        </div>
         <div class="card-grid">
           <div class="card">
             <div class="font-bold" style="margin-bottom: var(--space-2);">Restaurant / Branch</div>
@@ -101,13 +113,19 @@
   <script type="module">
     import { renderSidebar, showToast } from "../js/ui.js";
     import { requireAuth } from "../js/auth.js";
-    import { loadDeliverySettings, saveDeliverySettings } from "../js/api.js";
+    import { loadDeliverySettings, saveDeliverySettings, loadRestaurantSettings, saveRestaurantSettings } from "../js/api.js";
+    import { createClient } from "../js/supabaseClient.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
+    import { debugEnabled } from "../js/utils.js";
 
     renderSidebar("settings.html");
+    const supabase = createClient();
     await requireAuth();
+    mountNotifications({ supabase });
 
     const stateKey = "adminSettingsLocal";
     const state = JSON.parse(localStorage.getItem(stateKey) || "{}");
+    const syncStatus = document.getElementById("syncStatus");
 
     const bindToggle = (id, key, labelOn = "On", labelOff = "Off") => {
       const el = document.getElementById(id);
@@ -133,6 +151,20 @@
     bindToggle("toggleSound", "sound", "Sound on", "Sound off");
     bindToggle("toggleProfanity", "profanity", "Filter on", "Filter off");
 
+    // Debug toggle (client console logs)
+    const debugBtn = document.getElementById("toggleDebug");
+    const updateDebug = () => {
+      const on = debugEnabled();
+      debugBtn.classList.toggle("active", on);
+      debugBtn.textContent = on ? "Debug on" : "Debug off";
+    };
+    debugBtn.addEventListener("click", () => {
+      localStorage.setItem("admin_debug", debugEnabled() ? "0" : "1");
+      updateDebug();
+      showToast("Debug logging updated");
+    });
+    updateDebug();
+
     const setVal = (id, key) => {
       const el = document.getElementById(id);
       if (state[key]) el.value = state[key];
@@ -150,26 +182,26 @@
       state.restPhone = document.getElementById("restPhone").value;
       state.busyNote = document.getElementById("busyNote").value;
       persist();
-      showToast("Business settings saved (local)");
+      saveCloud();
     });
 
     document.getElementById("saveHours").addEventListener("click", () => {
       state.openTime = document.getElementById("openTime").value;
       state.closeTime = document.getElementById("closeTime").value;
       persist();
-      showToast("Hours saved (local)");
+      saveCloud();
     });
 
     document.getElementById("saveOrders").addEventListener("click", () => {
       state.autoCancel = document.getElementById("autoCancel").value;
       persist();
-      showToast("Order rules saved (local)");
+      saveCloud();
     });
 
     document.getElementById("saveNotify").addEventListener("click", () => {
       state.chatClose = document.getElementById("chatClose").value;
       persist();
-      showToast("Notification prefs saved (local)");
+      saveCloud();
     });
 
     // Delivery settings persisted to Supabase delivery_settings singleton table
@@ -195,6 +227,85 @@
       if (error) return showToast(error.message);
       showToast("Delivery settings saved");
     });
+
+    await loadCloud();
+
+    async function loadCloud() {
+      syncStatus.textContent = "Checking cloud settings…";
+      const res = await loadRestaurantSettings();
+      if (res?.missing) {
+        syncStatus.textContent = "Local only (apply migration to enable cloud sync)";
+        return;
+      }
+      if (res?.error) {
+        syncStatus.textContent = `Cloud error: ${res.error.message}`;
+        return;
+      }
+      if (res?.data) {
+        // Map DB -> local state (camel-ish keys)
+        state.restName = res.data.rest_name ?? state.restName;
+        state.restPhone = res.data.rest_phone ?? state.restPhone;
+        state.isOpen = res.data.is_open ?? state.isOpen;
+        state.isBusy = res.data.is_busy ?? state.isBusy;
+        state.busyNote = res.data.busy_note ?? state.busyNote;
+        state.openTime = res.data.open_time ?? state.openTime;
+        state.closeTime = res.data.close_time ?? state.closeTime;
+        state.autoCancel = res.data.auto_cancel_min ?? state.autoCancel;
+        state.chatClose = res.data.chat_close_hours ?? state.chatClose;
+        state.delivery = res.data.delivery_enabled ?? state.delivery;
+        state.pickup = res.data.pickup_enabled ?? state.pickup;
+        state.schedule = res.data.scheduled_orders_enabled ?? state.schedule;
+        state.cod = res.data.cash_on_delivery_enabled ?? state.cod;
+        state.sound = res.data.sound_alerts ?? state.sound;
+        state.profanity = res.data.profanity_filter ?? state.profanity;
+        persist();
+        // Re-apply values after merge
+        setVal("restName", "restName");
+        setVal("restPhone", "restPhone");
+        setVal("busyNote", "busyNote");
+        setVal("openTime", "openTime");
+        setVal("closeTime", "closeTime");
+        setVal("autoCancel", "autoCancel");
+        setVal("chatClose", "chatClose");
+        syncStatus.textContent = "Synced from cloud";
+      } else {
+        syncStatus.textContent = "Cloud sync ready (no settings saved yet)";
+      }
+    }
+
+    async function saveCloud() {
+      syncStatus.textContent = "Saving…";
+      const payload = {
+        rest_name: document.getElementById("restName").value || null,
+        rest_phone: document.getElementById("restPhone").value || null,
+        busy_note: document.getElementById("busyNote").value || null,
+        open_time: document.getElementById("openTime").value || null,
+        close_time: document.getElementById("closeTime").value || null,
+        auto_cancel_min: Number(document.getElementById("autoCancel").value || 0),
+        chat_close_hours: Number(document.getElementById("chatClose").value || 0),
+        is_open: !!state.isOpen,
+        is_busy: !!state.isBusy,
+        delivery_enabled: !!state.delivery,
+        pickup_enabled: !!state.pickup,
+        scheduled_orders_enabled: !!state.schedule,
+        cash_on_delivery_enabled: !!state.cod,
+        sound_alerts: !!state.sound,
+        profanity_filter: !!state.profanity,
+      };
+      const res = await saveRestaurantSettings(payload);
+      if (res?.missing) {
+        syncStatus.textContent = "Saved locally (cloud table missing)";
+        showToast("Saved (local)");
+        return;
+      }
+      if (res?.error) {
+        syncStatus.textContent = `Save failed: ${res.error.message}`;
+        showToast(res.error.message);
+        return;
+      }
+      syncStatus.textContent = "Saved to cloud";
+      showToast("Saved");
+    }
 
     function persist() {
       localStorage.setItem(stateKey, JSON.stringify(state));

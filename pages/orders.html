@@ -23,11 +23,14 @@
           <div id="pageTitle" class="font-bold">Orders</div>
           <div class="muted" style="font-size: var(--text-sm)">Inbox • Kitchen • Dispatch • Reports</div>
         </div>
-        <div class="tabs" style="margin-left:auto;">
-          <button class="tab active" data-tab="inbox">Inbox</button>
-          <button class="tab" data-tab="kitchen">Kitchen</button>
-          <button class="tab" data-tab="dispatch">Dispatch</button>
-          <button class="tab" data-tab="reports">Reports</button>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <div class="tabs">
+            <button class="tab active" data-tab="inbox">Inbox</button>
+            <button class="tab" data-tab="kitchen">Kitchen</button>
+            <button class="tab" data-tab="dispatch">Dispatch</button>
+            <button class="tab" data-tab="reports">Reports</button>
+          </div>
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
         </div>
       </div>
 
@@ -118,8 +121,8 @@
   <div id="toast" class="toast"></div>
 
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import {
       fetchOrdersAdvanced,
       fetchOrderDetails,
@@ -132,9 +135,13 @@
     } from "../js/api.js";
     import { statusLabel, fmtMoney, fmtDateTime, debounce } from "../js/utils.js";
     import { subscribeRealtime } from "../js/realtime.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("orders.html");
+    mountThemeToggle();
     const { user } = await requireAuth();
+    const supabase = getClient();
+    mountNotifications({ supabase });
 
     const tbody = document.querySelector("#ordersTable tbody");
     const statusTabs = Array.from(document.querySelectorAll("#statusTabs .pill"));
@@ -176,7 +183,8 @@
     document.getElementById("exportCsv").addEventListener("click", exportCsvFile);
     document.getElementById("closeDrawer").addEventListener("click", () => drawer.classList.remove("show"));
 
-    loadOrders();
+    await loadOrders();
+    openFromHash();
     const unsubscribe = subscribeRealtime({
       onOrders: (payload) => {
         if (payload.eventType === "INSERT") {
@@ -186,6 +194,15 @@
       },
     });
     window.addEventListener("beforeunload", unsubscribe);
+
+    function openFromHash() {
+      const raw = (window.location.hash || "").replace("#", "").trim();
+      if (!raw) return;
+      if (raw.length < 8) return;
+      openDrawer(raw);
+      // Keep URL clean after opening
+      history.replaceState(null, "", "orders.html");
+    }
 
     async function loadOrders() {
       tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
@@ -217,7 +234,7 @@
             <td><span class="chip">${o.payment_method} • ${o.payment_status}</span></td>
             <td>${address}</td>
             <td>${fmtDateTime(o.created_at)}</td>
-            <td><span class="badge">${o.chat_unread || 0} unread</span></td>
+            <td><span class="badge">Open</span></td>
           </tr>`;
         })
         .join("");

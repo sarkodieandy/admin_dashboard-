@@ -23,6 +23,9 @@
           <div class="font-bold">Chats</div>
           <div class="muted" style="font-size: var(--text-sm)">Order-based inbox</div>
         </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+        </div>
       </div>
       <div class="page">
         <div class="grid" style="display:grid; grid-template-columns: 280px 1fr 320px; gap: var(--space-4); align-items:start;">
@@ -51,14 +54,18 @@
   </div>
   <div id="toast" class="toast"></div>
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fetchChats, fetchChatMessages, sendChatMessage } from "../js/api.js";
     import { fmtDateTime } from "../js/utils.js";
     import { subscribeRealtime } from "../js/realtime.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("chats.html");
+    mountThemeToggle();
     const session = await requireAuth();
+    const supabase = getClient();
+    mountNotifications({ supabase });
 
     const convList = document.getElementById("convList");
     const thread = document.getElementById("thread");

@@ -23,6 +23,7 @@
           <div class="muted" style="font-size: var(--text-sm)">Directory & customer history</div>
         </div>
         <div style="margin-left:auto; display:flex; gap:8px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <input id="search" class="input" placeholder="Search phone or name" style="max-width:220px;">
           <select id="sort" class="input" style="max-width:200px;">
             <option value="recent">Sort: newest</option>
@@ -66,13 +67,16 @@
   <div id="toast" class="toast"></div>
 
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime, fmtMoney, debounce } from "../js/utils.js";
     import { fetchCustomers, fetchOrdersByUsers, fetchAddressesForUser } from "../js/api.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("customers.html");
+    mountThemeToggle();
     await requireAuth();
+    mountNotifications({ supabase: getClient() });
 
     const tbody = document.querySelector("#custTable tbody");
     const drawer = document.getElementById("custDrawer");

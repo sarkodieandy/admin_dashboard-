@@ -23,6 +23,9 @@
           <div class="font-bold">Analytics</div>
           <div class="muted" style="font-size: var(--text-sm)">Performance overview</div>
         </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+        </div>
       </div>
       <div class="page">
         <div class="flex" style="gap:10px; flex-wrap:wrap; margin-bottom:12px;">
@@ -64,13 +67,16 @@
     </main>
   </div>
   <script type="module">
-    import { renderSidebar } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fmtMoney } from "../js/utils.js";
     import { fetchOrdersRange } from "../js/api.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("analytics.html");
+    mountThemeToggle();
     await requireAuth();
+    mountNotifications({ supabase: getClient() });
 
     let revChart, statusChart, payChart;
     document.querySelectorAll("[data-range]").forEach((btn) => btn.addEventListener("click", () => quickRange(btn.dataset.range)));
@@ -134,18 +140,56 @@
     }
 
     function renderRevenueChart(orders, dateFrom, dateTo) {
-      const map = new Map();
+      const labels = buildDateRange(dateFrom, dateTo);
+      const byDay = new Map(labels.map((d) => [d, 0]));
       orders.forEach((o) => {
         const d = new Date(o.created_at).toISOString().slice(0, 10);
-        map.set(d, (map.get(d) || 0) + Number(o.total || 0));
+        byDay.set(d, (byDay.get(d) || 0) + Number(o.total || 0));
       });
-      const labels = Array.from(map.keys()).sort();
-      const data = labels.map((d) => map.get(d));
+      const data = labels.map((d) => byDay.get(d) || 0);
       if (revChart) revChart.destroy();
-      revChart = new Chart(document.getElementById("revChart"), {
+
+      const el = document.getElementById("revChart");
+      const ctx = el.getContext("2d");
+      const { grid, text, accent, accentFill } = chartPalette(ctx);
+      revChart = new Chart(el, {
         type: "line",
-        data: { labels, datasets: [{ label: "Revenue", data, borderColor: "#22c55e", fill: false }] },
-        options: { plugins: { legend: { display: false } }, tension: 0.3, scales: { y: { beginAtZero: true } } },
+        data: {
+          labels: labels.map((d) => d.slice(5)),
+          datasets: [
+            {
+              label: "Revenue",
+              data,
+              borderColor: accent,
+              backgroundColor: accentFill,
+              borderWidth: 2,
+              fill: true,
+              tension: 0.35,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: accent,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: { label: (item) => fmtMoney(item.parsed.y) },
+              displayColors: false,
+              backgroundColor: "rgba(15, 23, 42, 0.92)",
+              titleColor: "#fff",
+              bodyColor: "#fff",
+              padding: 10,
+            },
+          },
+          scales: {
+            x: { grid: { color: grid }, ticks: { color: text } },
+            y: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, callback: (v) => `GH₵ ${v}` } },
+          },
+        },
       });
     }
 
@@ -153,10 +197,29 @@
       const statuses = ["placed", "confirmed", "preparing", "ready", "en_route", "delivered", "cancelled"];
       const counts = statuses.map((s) => orders.filter((o) => o.status === s).length);
       if (statusChart) statusChart.destroy();
-      statusChart = new Chart(document.getElementById("statusChart"), {
-        type: "pie",
-        data: { labels: statuses, datasets: [{ data: counts, backgroundColor: ["#cbd5e1","#a5b4fc","#fde68a","#fbbf24","#34d399","#22c55e","#f87171"] }] },
-        options: { plugins: { legend: { position: "bottom" } } },
+      const el = document.getElementById("statusChart");
+      const ctx = el.getContext("2d");
+      const { grid, text } = chartPalette(ctx);
+      statusChart = new Chart(el, {
+        type: "bar",
+        data: {
+          labels: statuses.map((s) => s.replaceAll("_", " ")),
+          datasets: [
+            {
+              data: counts,
+              backgroundColor: ["#cbd5e1", "#93c5fd", "#fde68a", "#bbf7d0", "#7dd3fc", "#86efac", "#fca5a5"],
+              borderRadius: 10,
+            },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { beginAtZero: true, grid: { color: grid }, ticks: { color: text } },
+            y: { grid: { display: false }, ticks: { color: text } },
+          },
+        },
       });
     }
 
@@ -164,11 +227,44 @@
       const payments = ["cash", "momo", "card"];
       const counts = payments.map((p) => orders.filter((o) => o.payment_method === p).length);
       if (payChart) payChart.destroy();
-      payChart = new Chart(document.getElementById("payChart"), {
+      const el = document.getElementById("payChart");
+      const ctx = el.getContext("2d");
+      const { text } = chartPalette(ctx);
+      payChart = new Chart(el, {
         type: "doughnut",
         data: { labels: payments, datasets: [{ data: counts, backgroundColor: ["#0ea5e9","#22c55e","#a855f7"] }] },
-        options: { plugins: { legend: { position: "bottom" } } },
+        options: {
+          cutout: "68%",
+          plugins: {
+            legend: { position: "bottom", labels: { color: text } },
+            tooltip: { callbacks: { label: (item) => `${item.label}: ${item.parsed}` } },
+          },
+        },
       });
+    }
+
+    function buildDateRange(dateFrom, dateTo) {
+      if (!dateFrom || !dateTo) return [];
+      const start = new Date(`${dateFrom}T00:00:00`);
+      const end = new Date(`${dateTo}T00:00:00`);
+      const days = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        days.push(d.toISOString().slice(0, 10));
+      }
+      return days;
+    }
+
+    function chartPalette(ctx) {
+      Chart.defaults.font.family = getComputedStyle(document.documentElement).getPropertyValue("--font-base") || "Inter, system-ui";
+      Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue("--color-text") || "#0c1424";
+
+      const grid = "rgba(148, 163, 184, 0.16)";
+      const text = getComputedStyle(document.documentElement).getPropertyValue("--color-muted") || "#6b7280";
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-primary") || "#3b82f6";
+      const g = ctx.createLinearGradient(0, 0, 0, 220);
+      g.addColorStop(0, "rgba(59, 130, 246, 0.28)");
+      g.addColorStop(1, "rgba(59, 130, 246, 0.00)");
+      return { grid, text, accent, accentFill: g };
     }
   </script>
 </body>
