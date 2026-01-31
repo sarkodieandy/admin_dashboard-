@@ -47,20 +47,23 @@ class _PremiumBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 66,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 66,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 26,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
           Expanded(
@@ -100,7 +103,7 @@ class _PremiumBottomNav extends StatelessWidget {
             ),
           ),
         ],
-      ),
+      )),
     );
   }
 }
@@ -127,7 +130,7 @@ class _NavItem extends StatelessWidget {
     final bg = theme.colorScheme.secondaryContainer.withValues(alpha: isSelected ? 1 : 0);
 
     return PressScale(
-      onPressed: onTap,
+      onPressed: null,
       pressedScale: 0.96,
       child: InkWell(
         onTap: onTap,
@@ -163,6 +166,8 @@ class _NavItem extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: fg,
                                 fontWeight: FontWeight.w900,
