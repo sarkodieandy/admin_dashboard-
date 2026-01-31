@@ -17,6 +17,11 @@
 .btn.primary { background: var(--color-primary); border-color: var(--color-primary-strong); color: #fff; }
 .btn.danger { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
 .btn.ghost { background: transparent; }
+.btn.secondary {
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
 
 .icon-btn {
   width: 38px;
@@ -148,6 +153,10 @@
 .table tbody tr:hover { background: rgba(59,130,246,0.04); }
 .table tbody tr.new-row { animation: pulse-row 0.9s ease-out; }
 .table tbody tr { transition: background var(--dur-fast) var(--ease-soft); }
+.table-empty td {
+  background: transparent;
+  border-bottom: none;
+}
 .badge {
   display: inline-flex;
   align-items: center;
