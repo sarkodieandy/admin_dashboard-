@@ -193,7 +193,11 @@ export async function updatePromo(id, payload) {
 }
 
 export async function fetchReviews(limit = 200) {
-  return supabase.from("reviews").select("id,order_id,user_id,rating,comment,created_at").order("created_at", { ascending: false }).limit(limit);
+  return supabase
+    .from("reviews")
+    .select("id,order_id,user_id,rating,comment,created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .limit(limit);
 }
 
 export async function fetchOrdersForStatus(status) {
