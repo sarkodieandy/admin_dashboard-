@@ -54,6 +54,7 @@ class CartProvider extends ChangeNotifier {
 
   double get baseDeliveryFee => _deliveryBaseFee;
   double get minimumOrderSubtotal => _minimumOrderSubtotal;
+  bool get hasMinimumOrder => _minimumOrderSubtotal > 0;
 
   bool get isRestoring => _isRestoring;
   String? get error => _error;

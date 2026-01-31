@@ -287,13 +287,15 @@ class _CartScreenState extends State<CartScreen> {
                                 value: Money.format(cart.total),
                                 isEmphasis: true,
                               ),
-                              const SizedBox(height: AppSpacing.x10),
-                              Text(
-                                'Minimum order: ${Money.format(cart.minimumOrderSubtotal)}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                              if (cart.hasMinimumOrder) ...[
+                                const SizedBox(height: AppSpacing.x10),
+                                Text(
+                                  'Minimum order: ${Money.format(cart.minimumOrderSubtotal)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -307,7 +309,7 @@ class _CartScreenState extends State<CartScreen> {
                       padding: const EdgeInsets.fromLTRB(AppSpacing.x16, 0, AppSpacing.x16, AppSpacing.x16),
                       child: Column(
                         children: [
-                          if (!cart.meetsMinimumOrder)
+                          if (cart.hasMinimumOrder && !cart.meetsMinimumOrder)
                             Padding(
                               padding: const EdgeInsets.only(bottom: AppSpacing.x10),
                               child: Text(
@@ -318,7 +320,7 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                             ),
                           ElevatedButton(
-                            onPressed: cart.meetsMinimumOrder
+                            onPressed: (!cart.hasMinimumOrder || cart.meetsMinimumOrder)
                                 ? () => context.push(CheckoutScreen.routePath)
                                 : null,
                             child: Text('${AppStrings.checkout} • ${Money.format(cart.total)}'),

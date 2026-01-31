@@ -10,8 +10,10 @@ import '../../../core/widgets/app_empty_state.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/address_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../design_system/app_components.dart';
 import '../auth/login_screen.dart';
 import '../checkout/address_edit_screen.dart';
+import '../orders/orders_screen.dart';
 import '../profile/profile_setup_screen.dart';
 
 class AccountScreen extends StatelessWidget {
@@ -44,6 +46,24 @@ class AccountScreen extends StatelessWidget {
                     note: profileProvider.profile?.defaultDeliveryNote,
                     onEdit: () => context.push(ProfileSetupScreen.routePath),
                     onLogout: () async => context.read<AuthProvider>().signOut(),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.x16, 0, AppSpacing.x16, AppSpacing.x10),
+                  sliver: SliverToBoxAdapter(
+                    child: StaggeredSlideFadeIn(
+                      index: 0,
+                      child: _QuickActionsRow(
+                        onOrders: () => context.go(OrdersScreen.routePath),
+                        onAddress: () => context.push(AddressEditScreen.routePath),
+                        onSupport: () {
+                          AppComponents.haptic();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Support chat coming soon')),
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ),
                 SliverPadding(
@@ -197,7 +217,8 @@ class _AccountHero extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.18),
+            theme.colorScheme.primary.withValues(alpha: 0.22),
+            theme.colorScheme.secondary.withValues(alpha: 0.08),
             theme.colorScheme.surface.withValues(alpha: 0.0),
           ],
           begin: Alignment.topLeft,
@@ -318,21 +339,161 @@ class _AccountHero extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onEdit,
-                      icon: const Icon(Icons.edit_rounded),
-                      label: const Text('Edit profile'),
+                    child: PressScale(
+                      child: FilledButton.icon(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_rounded),
+                        label: const Text('Edit profile'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.x12),
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onLogout,
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Log out'),
+                    child: PressScale(
+                      child: OutlinedButton.icon(
+                        onPressed: onLogout,
+                        icon: const Icon(Icons.logout_rounded),
+                        label: const Text('Log out'),
+                      ),
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionsRow extends StatelessWidget {
+  const _QuickActionsRow({
+    required this.onOrders,
+    required this.onAddress,
+    required this.onSupport,
+  });
+
+  final VoidCallback onOrders;
+  final VoidCallback onAddress;
+  final VoidCallback onSupport;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickActionTile(
+            title: 'Orders',
+            subtitle: 'History & tracking',
+            icon: Icons.receipt_long_outlined,
+            color: theme.colorScheme.primaryContainer,
+            onTap: onOrders,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.x12),
+        Expanded(
+          child: _QuickActionTile(
+            title: 'Addresses',
+            subtitle: 'Delivery spots',
+            icon: Icons.location_on_outlined,
+            color: theme.colorScheme.surfaceContainerHighest,
+            onTap: onAddress,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.x12),
+        Expanded(
+          child: _QuickActionTile(
+            title: 'Support',
+            subtitle: 'Help & chat',
+            icon: Icons.support_agent_rounded,
+            color: theme.colorScheme.secondaryContainer,
+            onTap: onSupport,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  const _QuickActionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return PressScale(
+      child: InkWell(
+        onTap: () {
+          AppComponents.haptic();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(AppRadius.r20),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.r20),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(AppSpacing.x12),
+          child: Row(
+            children: [
+              Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(AppRadius.r16),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(width: AppSpacing.x10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

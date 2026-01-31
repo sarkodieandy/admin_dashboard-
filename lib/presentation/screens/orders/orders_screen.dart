@@ -14,10 +14,33 @@ import '../../providers/auth_provider.dart';
 import '../../providers/order_provider.dart';
 import 'order_tracking_screen.dart';
 
-class OrdersScreen extends StatelessWidget {
+class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
 
   static const routePath = '/app/orders';
+
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  bool _didKickoff = false;
+  bool _loadMoreArmed = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didKickoff) return;
+    _didKickoff = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      final orders = context.read<OrderProvider>();
+      if (auth.isSignedIn && orders.orders.isEmpty && !orders.isLoading) {
+        orders.refresh();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,19 +71,13 @@ class OrdersScreen extends StatelessWidget {
             : RefreshIndicator(
                 onRefresh: () => context.read<OrderProvider>().refresh(),
                 child: Builder(
-                  builder: (context) {
+              builder: (context) {
                     if (orders.isLoading && orders.orders.isEmpty) {
                       return ListView.separated(
                         padding: const EdgeInsets.all(AppSpacing.x16),
                         itemCount: 6,
                         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.x12),
-                        itemBuilder: (context, index) => Container(
-                          height: 92,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(AppRadius.r16),
-                          ),
-                        ),
+                        itemBuilder: (context, index) => _OrderSkeleton(theme: theme),
                       );
                     }
 
@@ -82,8 +99,13 @@ class OrdersScreen extends StatelessWidget {
 
                     return NotificationListener<ScrollNotification>(
                       onNotification: (notification) {
-                        if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 240) {
+                        final m = notification.metrics;
+                        final nearBottom = m.pixels >= m.maxScrollExtent - 240;
+                        if (nearBottom && _loadMoreArmed) {
+                          _loadMoreArmed = false;
                           context.read<OrderProvider>().loadMore();
+                        } else if (!nearBottom) {
+                          _loadMoreArmed = true;
                         }
                         return false;
                       },
@@ -136,10 +158,12 @@ class _OrderCard extends StatelessWidget {
 
   final Order order;
 
+  static final DateFormat _dateFmt = DateFormat('EEE, MMM d • HH:mm');
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final date = DateFormat('EEE, MMM d • HH:mm').format(order.createdAt.toLocal());
+    final date = _dateFmt.format(order.createdAt.toLocal());
     final status = _statusLabel(order.status);
     final isActive = order.isActive;
 
@@ -212,7 +236,7 @@ class _OrderCard extends StatelessWidget {
                 if (order.scheduledFor != null) ...[
                   const SizedBox(height: AppSpacing.x6),
                   Text(
-                    'Scheduled for ${DateFormat('EEE, MMM d • HH:mm').format(order.scheduledFor!.toLocal())}',
+                    'Scheduled for ${_dateFmt.format(order.scheduledFor!.toLocal())}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -275,5 +299,67 @@ class _OrderCard extends StatelessWidget {
       default:
         return theme.colorScheme.onSurfaceVariant;
     }
+  }
+}
+
+class _OrderSkeleton extends StatelessWidget {
+  const _OrderSkeleton({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 92,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadius.r16),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: AppSpacing.x14),
+          Container(
+            height: 46,
+            width: 46,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.r16),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.x12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    height: 12,
+                    width: 160,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.r12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.x10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    height: 10,
+                    width: 210,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.r12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.x14),
+        ],
+      ),
+    );
   }
 }

@@ -564,11 +564,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     value: Money.format(cart.total),
                     isEmphasis: true,
                   ),
-                  const SizedBox(height: AppSpacing.x10),
-                  Text(
-                    'Bekwai deliveries only • Minimum ${Money.format(cart.minimumOrderSubtotal)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
+                  if (cart.hasMinimumOrder) ...[
+                    const SizedBox(height: AppSpacing.x10),
+                    Text(
+                      'Minimum order ${Money.format(cart.minimumOrderSubtotal)}',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -591,7 +593,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.x16, 0, AppSpacing.x16, AppSpacing.x16),
           child: ElevatedButton(
-            onPressed: (!cart.meetsMinimumOrder || selectedAddress == null || isBusy)
+            onPressed: ((cart.hasMinimumOrder && !cart.meetsMinimumOrder) || selectedAddress == null || isBusy)
                 ? null
                 : () async {
                     final orderProvider = context.read<OrderProvider>();

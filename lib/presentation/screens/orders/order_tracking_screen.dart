@@ -457,8 +457,6 @@ class _TopActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Row(
       children: [
         _IconPillButton(
@@ -480,11 +478,6 @@ class _TopActionsRow extends StatelessWidget {
             count: cartCount,
           ),
           onTap: onCart,
-        ),
-        const SizedBox(width: 2),
-        Icon(
-          Icons.more_vert_rounded,
-          color: theme.colorScheme.onSurfaceVariant,
         ),
       ],
     );
@@ -544,15 +537,15 @@ class _TrackingHero extends StatelessWidget {
   static const _mapUrl =
       'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1400&q=60';
 
-  // Unsplash photo ID (stable) -> redirects to images.unsplash.com.
-  static const _riderUrl = 'https://source.unsplash.com/afDu-GuxjjM/1200x800';
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final headline = _headline(order.status);
     final sub = _subhead(order.status);
     final eta = _eta(order.status);
+    final shortId = order.id.characters.take(8).toString();
+    final status = _statusChip(order.status);
+    final statusColor = _statusColor(theme, order.status);
 
     return Container(
       height: 240,
@@ -574,7 +567,7 @@ class _TrackingHero extends StatelessWidget {
           children: [
             Positioned.fill(
               child: Opacity(
-                opacity: 0.14,
+                opacity: 0.12,
                 child: AppNetworkImage(
                   url: _mapUrl,
                   borderRadius: 0,
@@ -589,7 +582,7 @@ class _TrackingHero extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      theme.colorScheme.surface.withValues(alpha: 0.80),
+                      theme.colorScheme.surface.withValues(alpha: 0.86),
                       theme.colorScheme.surface,
                     ],
                   ),
@@ -605,24 +598,53 @@ class _TrackingHero extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Text(
-                    'Tracking Order',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.2,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          border: Border.all(color: statusColor.withValues(alpha: 0.24)),
+                        ),
+                        child: Text(
+                          status,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '#$shortId',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.x10),
                   Text(
                     headline,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.25,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.x6),
+                  Text(
+                    sub,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       height: 1.2,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.x10),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeOutCubic,
@@ -637,50 +659,53 @@ class _TrackingHero extends StatelessWidget {
                         color: theme.colorScheme.outlineVariant,
                       ),
                     ),
-                    child: Text(
-                      eta,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.x10),
-                  Expanded(
-                    child: Center(
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.0, end: 1.0),
-                        duration: const Duration(milliseconds: 380),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, t, child) {
-                          final slide = (1 - t) * 10;
-                          return Opacity(
-                            opacity: t,
-                            child: Transform.translate(
-                              offset: Offset(0, slide),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadius.r20),
-                          child: AppNetworkImage(
-                            url: _riderUrl,
-                            height: 118,
-                            width: 210,
-                            borderRadius: 0,
-                            fit: BoxFit.cover,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer_outlined, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 8),
+                        Text(
+                          eta,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sub,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      height: 1.2,
+                  const Spacer(),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.x12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(AppRadius.r20),
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          height: 36,
+                          width: 36,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(AppRadius.r14),
+                            border: Border.all(color: theme.colorScheme.outlineVariant),
+                          ),
+                          child: Icon(Icons.location_on_outlined, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(width: AppSpacing.x10),
+                        Expanded(
+                          child: Text(
+                            'We’ll notify you as your order moves.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              height: 1.2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -690,6 +715,28 @@ class _TrackingHero extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _statusChip(OrderStatus status) {
+    return switch (status) {
+      OrderStatus.placed => 'Placed',
+      OrderStatus.confirmed => 'Confirmed',
+      OrderStatus.preparing => 'Preparing',
+      OrderStatus.ready => 'Ready',
+      OrderStatus.enRoute => 'On the way',
+      OrderStatus.delivered => 'Delivered',
+      OrderStatus.cancelled => 'Cancelled',
+    };
+  }
+
+  Color _statusColor(ThemeData theme, OrderStatus status) {
+    return switch (status) {
+      OrderStatus.delivered => theme.colorScheme.secondary,
+      OrderStatus.cancelled => theme.colorScheme.error,
+      OrderStatus.enRoute => theme.colorScheme.primary,
+      OrderStatus.ready => theme.colorScheme.tertiary,
+      _ => theme.colorScheme.onSurfaceVariant,
+    };
   }
 
   String _headline(OrderStatus status) {
@@ -737,10 +784,10 @@ class _DriverCard extends StatelessWidget {
     final isEnRoute = order.status == OrderStatus.enRoute;
     final isDelivered = order.status == OrderStatus.delivered;
     final label = isDelivered
-        ? 'Delivered'
+        ? 'Delivery completed'
         : isEnRoute
-        ? 'Arriving soon'
-        : 'Driver assigned soon';
+            ? 'Rider is on the way'
+            : 'Rider details will appear here';
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.x16),
@@ -765,7 +812,7 @@ class _DriverCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Driver: Alex',
+                  'Rider',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.1,
@@ -774,14 +821,6 @@ class _DriverCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Honda Scooter  •  ABC 1234',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     height: 1.2,
@@ -822,7 +861,7 @@ class _ProgressCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tracking Order...',
+            'Progress',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w900,
             ),
