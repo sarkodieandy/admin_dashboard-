@@ -1,5 +1,5 @@
 .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.kpi-card { padding: 14px; border-radius: var(--radius-md); background: var(--color-panel); border: 1px solid var(--color-border); box-shadow: var(--color-shadow); }
+.kpi-card { padding: 14px; border-radius: var(--radius-md); background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(59,130,246,0.02)); border: 1px solid var(--color-border); box-shadow: var(--shadow-xs); }
 
 .layout-shell { display: flex; gap: var(--space-4); }
 .page { padding: var(--space-4); }
