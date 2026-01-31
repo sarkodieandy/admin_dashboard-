@@ -62,8 +62,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.initState();
     _controller = PageController();
     _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) => _autoAdvance());
-    // Warm up first couple of assets to avoid flashes/jank on first swipe.
-    _precacheAround(0);
+    // Warm up first couple of assets after first frame (safe for MediaQuery/Theme).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _precacheAround(0);
+    });
   }
 
   @override
