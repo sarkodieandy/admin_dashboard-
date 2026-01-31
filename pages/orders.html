@@ -120,6 +120,22 @@
 
   <div id="toast" class="toast"></div>
 
+  <div class="modal-backdrop" id="assignRiderModal">
+    <div class="modal">
+      <header>
+        <div>
+          <div class="font-semibold">Assign rider</div>
+          <div class="muted text-sm">Only active riders appear here.</div>
+        </div>
+        <button class="btn ghost" id="closeAssignModal">✕</button>
+      </header>
+      <div class="stack" style="gap:10px;">
+        <input class="input" id="assignRiderSearch" placeholder="Search rider name or phone" />
+        <div id="assignRiderList" class="rider-list"></div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
@@ -132,8 +148,18 @@
       fetchOrdersForStatus,
       fetchRiders,
       exportOrdersCsv,
+      fetchDeliveryForOrder,
+      fetchDeliveriesForOrders,
+      upsertDelivery,
+      updateDeliveryStatus,
     } from "../js/api.js";
-    import { statusLabel, fmtMoney, fmtDateTime, debounce } from "../js/utils.js";
+    import {
+      statusLabel,
+      fmtMoney,
+      fmtDateTime,
+      debounce,
+      deliveryStatusLabel,
+    } from "../js/utils.js";
     import { subscribeRealtime } from "../js/realtime.js";
     import { mountNotifications } from "../js/notifications_ui.js";
 
@@ -154,6 +180,13 @@
 
     let currentStatus = "all";
     let currentOrders = [];
+    let currentOrderId = null;
+    let currentDelivery = null;
+    const assignModal = document.getElementById("assignRiderModal");
+    const assignRiderList = document.getElementById("assignRiderList");
+    const assignRiderSearch = document.getElementById("assignRiderSearch");
+    const closeAssignModalBtn = document.getElementById("closeAssignModal");
+    let ridersCache = [];
 
     sectionTabs.forEach((btn) =>
       btn.addEventListener("click", () => {
@@ -182,6 +215,18 @@
     document.getElementById("minTotal").addEventListener("change", loadOrders);
     document.getElementById("exportCsv").addEventListener("click", exportCsvFile);
     document.getElementById("closeDrawer").addEventListener("click", () => drawer.classList.remove("show"));
+    closeAssignModalBtn.addEventListener("click", () => assignModal.classList.remove("show"));
+    assignModal.addEventListener("click", (event) => {
+      if (event.target === assignModal) {
+        assignModal.classList.remove("show");
+      }
+    });
+    assignRiderSearch.addEventListener("input", () => renderAssignableRiders(assignRiderSearch.value.trim()));
+    assignRiderList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-assign]");
+      if (!button) return;
+      assignRider(button.dataset.assign);
+    });
 
     await loadOrders();
     openFromHash();
@@ -191,6 +236,12 @@
           showToast("New order just arrived");
         }
         loadOrders();
+      },
+      onDeliveries: () => {
+        loadDispatch();
+        if (drawer.classList.contains("show") && currentOrderId) {
+          openDrawer(currentOrderId);
+        }
       },
     });
     window.addEventListener("beforeunload", unsubscribe);
@@ -246,7 +297,13 @@
       drawerTitle.textContent = `Order #${id.slice(0, 8)}`;
       drawerSubtitle.textContent = "Loading…";
       drawerContent.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+      currentOrderId = id;
       const { order, items, timeline, chat } = await fetchOrderDetails(id);
+      const { data: deliveryData, error: deliveryError } = await fetchDeliveryForOrder(id);
+      if (deliveryError) {
+        showToast(`Delivery load error: ${deliveryError.message}`);
+      }
+      currentDelivery = deliveryData || null;
       if (order.error) {
         drawerContent.innerHTML = `<div class="muted">Error loading order: ${order.error.message}</div>`;
         return;
@@ -286,6 +343,7 @@
           </div>
           ${timelineHtml || '<div class="muted text-sm">No events yet</div>'}
         </div>
+        ${renderRiderCard(o, currentDelivery)}
         <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
           <div class="font-semibold" style="margin-bottom:6px;">Order Chat</div>
           <div id="chatMessages" class="stack" style="gap:8px; max-height:220px; overflow:auto;"></div>
@@ -298,6 +356,10 @@
       drawerContent.querySelectorAll("[data-action]").forEach((btn) =>
         btn.addEventListener("click", () => changeStatus(id, btn.dataset.action))
       );
+      drawerContent.querySelectorAll("[data-open-assign]").forEach((btn) => btn.addEventListener("click", openAssignRiderModal));
+      drawerContent.querySelectorAll("[data-delivery-status]").forEach((btn) =>
+        btn.addEventListener("click", () => changeDeliveryStatus(btn.dataset.deliveryId, btn.dataset.deliveryStatus))
+      );
 
       if (chat.data?.id) {
         renderChat(chat.data.id);
@@ -305,7 +367,141 @@
       } else {
         drawerContent.querySelector("#chatMessages").innerHTML = `<div class="muted text-sm">No chat yet</div>`;
       }
+  }
+
+  function renderRiderCard(order, delivery) {
+    if (!delivery) {
+      return `
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="flex-between">
+            <div>
+              <div class="font-semibold">Rider</div>
+              <div class="muted text-sm">No rider assigned yet for this order.</div>
+            </div>
+            <button class="btn primary" data-open-assign>Assign rider</button>
+          </div>
+        </div>
+      `;
     }
+
+    const rider = delivery.rider || {};
+    const statusChip = `<span class="tag info">${deliveryStatusLabel(delivery.status)}</span>`;
+    const vehicle = rider.vehicle_type ? ` • ${escapeHtml(rider.vehicle_type)}` : "";
+    const actions = renderDeliveryActionButtons(delivery);
+
+    return `
+      <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+        <div class="flex-between" style="gap:12px;">
+          <div>
+            <div class="font-semibold">${escapeHtml(rider.name || "Rider")}</div>
+            <div class="muted text-sm">${delivery.assigned_at ? fmtDateTime(delivery.assigned_at) : "Assigned time unknown"}${vehicle}</div>
+          </div>
+          <div style="text-align:right;">
+            ${statusChip}
+            <button class="btn ghost small" data-open-assign style="margin-top:6px;">Change rider</button>
+          </div>
+        </div>
+        <div class="muted text-sm" style="margin-top:8px;">
+          ${
+            rider.phone
+              ? `<a class="link" href="tel:${rider.phone}">${escapeHtml(rider.phone)}</a>`
+              : "Phone not available"
+          }
+        </div>
+        ${actions ? `<div class="flex" style="gap:8px; flex-wrap:wrap; margin-top:12px;">${actions}</div>` : ""}
+      </div>
+    `;
+  }
+
+  function renderDeliveryActionButtons(delivery) {
+    const steps = ["assigned", "picked_up", "en_route", "delivered"];
+    const index = steps.indexOf(delivery.status);
+    if (index === -1 || index >= steps.length - 1 || delivery.status === "cancelled") {
+      return "";
+    }
+    return steps
+      .slice(index + 1)
+      .map(
+        (status) =>
+          `<button class="btn ghost small" data-delivery-id="${delivery.id}" data-delivery-status="${status}">${deliveryStatusLabel(
+            status,
+          )}</button>`,
+      )
+      .join("");
+  }
+
+  async function openAssignRiderModal() {
+    if (!currentOrderId) return;
+    if (!ridersCache.length) {
+      const { data, error } = await fetchRiders({ activeOnly: true });
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      ridersCache = data || [];
+    }
+    renderAssignableRiders(assignRiderSearch.value.trim());
+    assignModal.classList.add("show");
+  }
+
+  function renderAssignableRiders(filter = "") {
+    const normalized = filter.toLowerCase();
+    const filtered = (ridersCache || []).filter((r) => {
+      const haystack = `${r.name || ""} ${r.phone || ""} ${r.vehicle_type || ""}`.toLowerCase();
+      return haystack.includes(normalized);
+    });
+
+    if (!filtered.length) {
+      assignRiderList.innerHTML = `<div class="muted text-sm">No riders match this search.</div>`;
+      return;
+    }
+
+    assignRiderList.innerHTML = filtered
+      .map(
+        (r) => `
+          <button class="btn ghost" type="button" data-assign="${r.id}" style="width:100%; justify-content:flex-start; gap:12px;">
+            <div style="flex:1;">
+              <div class="font-semibold">${escapeHtml(r.name || "Rider")}</div>
+              <div class="muted text-xs">${escapeHtml(r.phone || "No phone")}</div>
+            </div>
+            <span class="muted text-xs">${escapeHtml(r.vehicle_type || "Vehicle")}</span>
+          </button>
+        `,
+      )
+      .join("");
+  }
+
+  async function assignRider(riderId) {
+    if (!currentOrderId) return;
+    assignModal.classList.remove("show");
+    const { error } = await upsertDelivery({
+      order_id: currentOrderId,
+      rider_id: riderId,
+      status: "assigned",
+      assigned_at: new Date().toISOString(),
+    });
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+    showToast("Rider assigned");
+    loadDispatch();
+    loadOrders();
+    openDrawer(currentOrderId);
+  }
+
+  async function changeDeliveryStatus(deliveryId, status) {
+    if (!deliveryId || !status) return;
+    const { error } = await updateDeliveryStatus(deliveryId, status);
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+    showToast(`Delivery ${deliveryStatusLabel(status)}`);
+    loadDispatch();
+    loadOrders();
+    openDrawer(currentOrderId);
+  }
 
     function nextActions(status) {
       switch (status) {
@@ -405,23 +601,40 @@
       const grid = document.getElementById("dispatchGrid");
       grid.innerHTML = `<div class="skeleton" style="height:80px;"></div>`;
       const ready = await fetchOrdersForStatus("ready");
-      const riders = await fetchRiders();
-      const riderList = (riders.data || []).map((r) => `<span class="chip">${r.name || "Rider"} (${r.phone || "-"})</span>`).join("");
-      const cards = (ready.data || []).map(
-        (o) => `
-        <div class="card" style="border:1px solid var(--color-border);">
-          <div class="flex-between"><div class="font-semibold">#${o.id.slice(0,8)}</div><span class="tag info">Ready</span></div>
-          <div class="muted text-sm">${o.address_snapshot?.address || ""}</div>
-          <div class="muted text-sm" style="margin:6px 0;">Riders: ${riderList || "None"}</div>
-          <div class="flex" style="gap:8px;">
-            <button class="btn" data-change="${o.id}" data-to="en_route" style="flex:1;">Out for delivery</button>
-            <button class="btn primary" data-change="${o.id}" data-to="delivered" style="flex:1;">Delivered</button>
-          </div>
-        </div>`
-      );
-      grid.innerHTML = cards.join("") || `<div class="muted">No orders to dispatch</div>`;
-      grid.querySelectorAll("[data-change]").forEach((btn) =>
-        btn.addEventListener("click", () => changeStatus(btn.dataset.change, btn.dataset.to))
+      const orders = ready.data || [];
+      const deliveriesRes = await fetchDeliveriesForOrders(orders.map((o) => o.id));
+      if (deliveriesRes.error) {
+        showToast(deliveriesRes.error.message);
+      }
+      const deliveriesMap = new Map((deliveriesRes.data || []).map((d) => [d.order_id, d]));
+      const cards =
+        orders
+          .map((o) => {
+            const delivery = deliveriesMap.get(o.id);
+            const statusBadge = delivery
+              ? `<span class="tag info">${deliveryStatusLabel(delivery.status)}</span>`
+              : `<span class="tag muted">Awaiting rider</span>`;
+            const riderLine = delivery?.rider
+              ? `${escapeHtml(delivery.rider.name || "Rider")} • ${escapeHtml(delivery.rider.phone || "No phone")}`
+              : "No rider assigned";
+            return `
+            <div class="card" style="border:1px solid var(--color-border);">
+              <div class="flex-between">
+                <div class="font-semibold">#${o.id.slice(0, 8)}</div>
+                ${statusBadge}
+              </div>
+              <div class="muted text-sm">${o.address_snapshot?.address || ""}</div>
+              <div class="muted text-sm" style="margin:6px 0;">${riderLine}</div>
+              <div class="flex" style="gap:8px;">
+                <button class="btn" data-open-order="${o.id}" style="flex:1;">View order</button>
+                <button class="btn secondary" data-open-order="${o.id}" style="flex:1;">Assign rider</button>
+              </div>
+            </div>`;
+          })
+          .join("") || "";
+      grid.innerHTML = cards || `<div class="muted">No orders to dispatch</div>`;
+      grid.querySelectorAll("[data-open-order]").forEach((btn) =>
+        btn.addEventListener("click", () => openDrawer(btn.dataset.openOrder))
       );
     }
 
@@ -464,6 +677,15 @@
       a.click();
       URL.revokeObjectURL(a.href);
       showToast("Exported orders.csv");
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
   </script>
 </body>

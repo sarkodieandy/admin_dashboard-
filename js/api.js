@@ -4,6 +4,8 @@ const supabase = getClient();
 
 const ORDER_FIELDS =
   "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id";
+const DELIVERY_WITH_RIDER =
+  "id,order_id,rider_id,status,assigned_at,picked_at,delivered_at,updated_at,rider:riders(id,name,phone,vehicle_type,is_active)";
 
 export async function fetchOrdersAdvanced({
   status,
@@ -176,23 +178,64 @@ export async function markAllNotificationsRead() {
   return supabase.from("staff_notifications").update({ is_read: true }).eq("is_read", false);
 }
 
-export async function fetchRiders() {
-  return supabase
-    .from("profiles")
-    .select("id,name,phone,role,default_delivery_note,created_at")
-    .eq("role", "rider")
+export async function fetchRiders({ activeOnly = false, search = "" } = {}) {
+  let q = supabase
+    .from("riders")
+    .select("id,name,phone,vehicle_type,is_active,created_at")
     .order("created_at", { ascending: false });
+  if (activeOnly) q = q.eq("is_active", true);
+  if (search) {
+    const term = `%${search}%`;
+    q = q.or(`name.ilike.${term},phone.ilike.${term},vehicle_type.ilike.${term}`);
+  }
+  return q;
 }
 
 export async function updateRider(id, payload) {
-  return supabase.from("profiles").update(payload).eq("id", id);
+  return supabase.from("riders").update(payload).eq("id", id).select("id,name,phone,vehicle_type,is_active,created_at").maybeSingle();
 }
 
 export async function insertRider(payload) {
   return supabase
-    .from("profiles")
-    .insert({ ...payload, role: "rider" })
-    .select("id,name,phone,role,default_delivery_note,created_at")
+    .from("riders")
+    .insert(payload)
+    .select("id,name,phone,vehicle_type,is_active,created_at")
+    .maybeSingle();
+}
+
+export async function fetchDeliveryForOrder(orderId) {
+  return supabase.from("deliveries").select(DELIVERY_WITH_RIDER).eq("order_id", orderId).maybeSingle();
+}
+
+export async function fetchDeliveriesForOrders(orderIds = []) {
+  if (!orderIds.length) return { data: [], error: null };
+  return supabase.from("deliveries").select(DELIVERY_WITH_RIDER).in("order_id", orderIds);
+}
+
+export async function upsertDelivery(payload) {
+  return supabase
+    .from("deliveries")
+    .upsert(payload, { onConflict: "order_id" })
+    .select(DELIVERY_WITH_RIDER)
+    .maybeSingle();
+}
+
+export async function updateDeliveryStatus(deliveryId, status) {
+  const updates = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (status === "picked_up") {
+    updates.picked_at = new Date().toISOString();
+  }
+  if (status === "delivered") {
+    updates.delivered_at = new Date().toISOString();
+  }
+  return supabase
+    .from("deliveries")
+    .update(updates)
+    .eq("id", deliveryId)
+    .select(DELIVERY_WITH_RIDER)
     .maybeSingle();
 }
 

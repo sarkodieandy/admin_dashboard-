@@ -6,11 +6,14 @@ const supabase = getClient();
 /**
  * Subscribe to orders + chat_messages + staff_notifications realtime streams.
  */
-export function subscribeRealtime({ onOrders, onMessages, onNotifications }) {
+export function subscribeRealtime({ onOrders, onDeliveries, onMessages, onNotifications }) {
   const channel = supabase
     .channel("admin-realtime")
     .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
       onOrders && onOrders(payload);
+    })
+    .on("postgres_changes", { schema: "public", table: "deliveries" }, (payload) => {
+      onDeliveries && onDeliveries(payload);
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
       onMessages && onMessages(payload);

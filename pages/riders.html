@@ -28,15 +28,18 @@
         </div>
       </div>
       <div class="page">
-        <div class="card" style="margin-bottom: var(--space-3);">
-          <div class="flex-between" style="gap:12px;">
-            <div>
-              <div class="font-semibold">Manage riders</div>
-              <div class="muted text-sm">Add new riders so their info shows in the checkout & tracking experience.</div>
-            </div>
-            <button class="btn secondary" id="openRiderHint">Need help?</button>
+      <div class="card" style="margin-bottom: var(--space-3);">
+        <div class="flex-between" style="gap:12px;">
+          <div>
+            <div class="font-semibold">Manage riders</div>
+            <div class="muted text-sm">Add and store rider details so tracking + delivery info syncs across the app.</div>
+          </div>
+          <div class="flex" style="gap:8px;">
+            <button class="btn ghost" id="openRiderHint">Need help?</button>
+            <button class="btn primary" id="addRiderBtn">Add rider</button>
           </div>
         </div>
+      </div>
       <div class="card">
         <div class="flex-between" style="margin-bottom: var(--space-2); gap:6px;">
           <div>
@@ -50,6 +53,7 @@
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
+                <th>Vehicle</th>
                 <th>Status</th>
                 <th>Added</th>
                 <th></th>
@@ -75,6 +79,17 @@
       <input class="input" id="riderName" required />
       <label class="label">Phone</label>
       <input class="input" id="riderPhone" />
+      <label class="label">Vehicle type</label>
+      <select class="input" id="riderVehicle">
+        <option value="">Select vehicle</option>
+        <option value="bike">Bike</option>
+        <option value="car">Car</option>
+        <option value="other">Other</option>
+      </select>
+      <label class="label" style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="riderActive" />
+        <span>Active rider</span>
+      </label>
       <label class="label">Delivery notes</label>
       <textarea class="input" id="riderNote" rows="3" placeholder="Optional reminder for kitchen/rider"></textarea>
       <button class="btn primary" type="submit">Save rider</button>
@@ -99,33 +114,32 @@
     const riderForm = document.getElementById("riderForm");
     const riderName = document.getElementById("riderName");
     const riderPhone = document.getElementById("riderPhone");
+    const riderVehicle = document.getElementById("riderVehicle");
+    const riderActive = document.getElementById("riderActive");
     const riderNote = document.getElementById("riderNote");
     const riderSubtitle = document.getElementById("riderModalSubtitle");
     const riderModalTitle = document.getElementById("riderModalTitle");
     let riderMap = new Map();
     let editingRider = null;
 
+    function openRiderModal(title, subtitle, rider) {
+      editingRider = rider || null;
+      riderModalTitle.textContent = title;
+      riderSubtitle.textContent = subtitle;
+      riderName.value = rider?.name ?? "";
+      riderPhone.value = rider?.phone ?? "";
+      riderVehicle.value = rider?.vehicle_type ?? "";
+      riderActive.checked = rider?.is_active ?? true;
+      riderNote.value = rider?.default_delivery_note ?? "";
+      riderModal.classList.add("show");
+    }
+
     document.getElementById("refreshRiders").addEventListener("click", load);
-    document.getElementById("addRiderBtn").addEventListener("click", () => {
-      editingRider = null;
-      riderModalTitle.textContent = "Add rider";
-      riderSubtitle.textContent = "Create a new rider profile";
-      riderName.value = "";
-      riderPhone.value = "";
-      riderNote.value = "";
-      riderModal.classList.add("show");
-    });
+    document.getElementById("addRiderBtn").addEventListener("click", () =>
+      openRiderModal("Add rider", "Create a new rider profile", null),
+    );
     document.getElementById("openRiderHint").addEventListener("click", () => {
-      showToast("Riders are stored in `profiles` with role `rider`. Add them here so tracking shows their details.");
-    });
-    document.getElementById("addRiderBtn").addEventListener("click", () => {
-      editingRider = null;
-      riderModalTitle.textContent = "Add rider";
-      riderSubtitle.textContent = "Create a new rider profile";
-      riderName.value = "";
-      riderPhone.value = "";
-      riderNote.value = "";
-      riderModal.classList.add("show");
+      showToast("Riders are stored in the `riders` table. Add them here so tracking shows their details.");
     });
     document
       .getElementById("closeRiderModal")
@@ -139,6 +153,8 @@
       const payload = {
         name: riderName.value.trim() || null,
         phone: riderPhone.value.trim() || null,
+        vehicle_type: riderVehicle.value || null,
+        is_active: riderActive.checked,
         default_delivery_note: riderNote.value.trim() || null,
       };
       if (editingRider) {
@@ -163,16 +179,16 @@
     load();
 
     async function load() {
-      tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
       const { data, error } = await fetchRiders();
       if (error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
         return;
       }
       if (!data || data.length === 0) {
         tbody.innerHTML = `
           <tr class="table-empty">
-            <td colspan="5">
+            <td colspan="6">
               <div class="flex-between" style="gap:12px;">
                 <div>
                   <div class="font-semibold">No riders yet</div>
@@ -191,19 +207,21 @@
       tbody.innerHTML = (data || [])
         .map((r) => {
           const note = r.default_delivery_note?.trim() || "No notes";
-          const notePreview = note.length > 40 ? note.slice(0, 40) + "…" : note;
+          const notePreview = note.length > 40 ? `${note.slice(0, 40)}…` : note;
+          const statusTag = r.is_active
+            ? '<span class="chip success">Active</span>'
+            : '<span class="chip muted">Inactive</span>';
           return `
             <tr data-id="${r.id}">
               <td>
                 <div class="font-semibold">${escapeHtml(r.name || "Rider")}</div>
-                <div class="muted text-xs">${fmtDateTime(r.created_at || "")}</div>
+                <div class="muted text-xs">Created ${fmtDateTime(r.created_at || "")}</div>
               </td>
               <td>${escapeHtml(r.phone || "—")}</td>
+              <td>${escapeHtml(r.vehicle_type || "Unspecified")}</td>
               <td>
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <span class="chip">${escapeHtml(r.role)}</span>
-                  <span class="muted text-xs">${escapeHtml(notePreview)}</span>
-                </div>
+                <div style="display:flex; align-items:center; gap:6px;">${statusTag}</div>
+                <div class="muted text-xs">${escapeHtml(notePreview)}</div>
               </td>
               <td><span class="muted text-sm">Updated ${fmtDateTime(r.created_at || "")}</span></td>
               <td>
@@ -216,13 +234,13 @@
         button.addEventListener("click", () => {
           const rider = riderMap.get(button.dataset.editRider);
           if (!rider) return;
-          editingRider = rider;
-          riderName.value = rider.name || "";
-          riderPhone.value = rider.phone || "";
-          riderNote.value = rider.default_delivery_note || "";
-          riderModalTitle.textContent = `Edit rider ${rider.name?.split(" ").shift() || "profile"}`;
-          riderSubtitle.textContent = `Role: ${rider.role} • Created ${fmtDateTime(rider.created_at || "")}`;
-          riderModal.classList.add("show");
+          openRiderModal(
+            `Edit rider ${rider.name?.split(" ").shift() || "profile"}`,
+            `Vehicle: ${rider.vehicle_type || "Unspecified"} • ${rider.is_active ? "Active" : "Inactive"} • Created ${fmtDateTime(
+              rider.created_at || "",
+            )}`,
+            rider,
+          );
         });
       });
     }

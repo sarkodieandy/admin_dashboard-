@@ -25,3 +25,14 @@ export const statusLabel = (s) => {
   };
   return map[s] || s;
 };
+
+export const deliveryStatusLabel = (s) => {
+  const map = {
+    assigned: "Assigned",
+    picked_up: "Picked up",
+    en_route: "On the way",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  };
+  return map[s] || s;
+};
