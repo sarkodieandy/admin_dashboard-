@@ -72,11 +72,11 @@
     </form>
   </div>
 </div>
-<script type="module">
+  <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime } from "../js/utils.js";
-    import { fetchRiders, updateRider } from "../js/api.js";
+    import { fetchRiders, updateRider, insertRider } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("riders.html");
@@ -97,25 +97,44 @@
     let editingRider = null;
 
     document.getElementById("refreshRiders").addEventListener("click", load);
-    document.getElementById("closeRiderModal").addEventListener("click", () => riderModal.classList.remove("show"));
+    document.getElementById("addRiderBtn").addEventListener("click", () => {
+      editingRider = null;
+      riderModalTitle.textContent = "Add rider";
+      riderSubtitle.textContent = "Create a new rider profile";
+      riderName.value = "";
+      riderPhone.value = "";
+      riderNote.value = "";
+      riderModal.classList.add("show");
+    });
+    document
+      .getElementById("closeRiderModal")
+      .addEventListener("click", () => riderModal.classList.remove("show"));
     riderModal.addEventListener("click", (event) => {
       if (event.target === riderModal) riderModal.classList.remove("show");
     });
 
     riderForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (!editingRider) return;
       const payload = {
         name: riderName.value.trim() || null,
         phone: riderPhone.value.trim() || null,
         default_delivery_note: riderNote.value.trim() || null,
       };
-      const { error } = await updateRider(editingRider.id, payload);
-      if (error) {
-        showToast(error.message);
-        return;
+      if (editingRider) {
+        const { error } = await updateRider(editingRider.id, payload);
+        if (error) {
+          showToast(error.message);
+          return;
+        }
+        showToast("Rider saved");
+      } else {
+        const { error } = await insertRider(payload);
+        if (error) {
+          showToast(error.message);
+          return;
+        }
+        showToast("Rider created");
       }
-      showToast('Rider saved');
       riderModal.classList.remove("show");
       await load();
     });
@@ -136,26 +155,26 @@
       riderMap = new Map((data || []).map((r) => [r.id, r]));
       tbody.innerHTML = (data || [])
         .map((r) => {
-          const note = r.default_delivery_note?.trim() || 'No notes';
-          const notePreview = note.length > 40 ? note.slice(0, 40) + '…' : note;
+          const note = r.default_delivery_note?.trim() || "No notes";
+          const notePreview = note.length > 40 ? note.slice(0, 40) + "…" : note;
           return `
-          <tr data-id="${r.id}">
-            <td>
-              <div class="font-semibold">${escapeHtml(r.name || 'Rider')}</div>
-              <div class="muted text-xs">${fmtDateTime(r.created_at || '')}</div>
-            </td>
-            <td>${escapeHtml(r.phone || '—')}</td>
-            <td>
-              <div style="display:flex; align-items:center; gap:6px;">
-                <span class="chip">${escapeHtml(r.role)}</span>
-                <span class="muted text-xs">${escapeHtml(notePreview)}</span>
-              </div>
-            </td>
-            <td><span class="muted text-sm">Updated ${fmtDateTime(r.created_at || '')}</span></td>
-            <td>
-              <button class="btn ghost" data-edit-rider="${r.id}">Edit</button>
-            </td>
-          </tr>`;
+            <tr data-id="${r.id}">
+              <td>
+                <div class="font-semibold">${escapeHtml(r.name || "Rider")}</div>
+                <div class="muted text-xs">${fmtDateTime(r.created_at || "")}</div>
+              </td>
+              <td>${escapeHtml(r.phone || "—")}</td>
+              <td>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="chip">${escapeHtml(r.role)}</span>
+                  <span class="muted text-xs">${escapeHtml(notePreview)}</span>
+                </div>
+              </td>
+              <td><span class="muted text-sm">Updated ${fmtDateTime(r.created_at || "")}</span></td>
+              <td>
+                <button class="btn ghost" data-edit-rider="${r.id}">Edit</button>
+              </td>
+            </tr>`;
         })
         .join("");
       tbody.querySelectorAll("[data-edit-rider]").forEach((button) => {
@@ -163,23 +182,23 @@
           const rider = riderMap.get(button.dataset.editRider);
           if (!rider) return;
           editingRider = rider;
-          riderName.value = rider.name || '';
-          riderPhone.value = rider.phone || '';
-          riderNote.value = rider.default_delivery_note || '';
-          riderModalTitle.textContent = `Edit rider ${rider.name?.split(' ').shift() || 'profile'}`;
-          riderSubtitle.textContent = `Role: ${rider.role} • Created ${fmtDateTime(rider.created_at || '')}`;
+          riderName.value = rider.name || "";
+          riderPhone.value = rider.phone || "";
+          riderNote.value = rider.default_delivery_note || "";
+          riderModalTitle.textContent = `Edit rider ${rider.name?.split(" ").shift() || "profile"}`;
+          riderSubtitle.textContent = `Role: ${rider.role} • Created ${fmtDateTime(rider.created_at || "")}`;
           riderModal.classList.add("show");
         });
       });
     }
 
     function escapeHtml(value) {
-      return String(value || '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
   </script>
 </body>
