@@ -27,13 +27,222 @@ class AccountScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.account)),
-      body: SafeArea(
-        child: auth.isSignedIn
-            ? ListView(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text(AppStrings.account),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: auth.isSignedIn
+          ? CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _AccountHero(
+                    name: profileProvider.profile?.name ?? (auth.isGuest ? 'Guest' : ''),
+                    phone: profileProvider.profile?.phone,
+                    isGuest: auth.isGuest,
+                    note: profileProvider.profile?.defaultDeliveryNote,
+                    onEdit: () => context.push(ProfileSetupScreen.routePath),
+                    onLogout: () async => context.read<AuthProvider>().signOut(),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.x16, AppSpacing.x10, AppSpacing.x16, AppSpacing.x10),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        Text(
+                          'Saved addresses',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const Spacer(),
+                        FilledButton.icon(
+                          onPressed: () => context.push(AddressEditScreen.routePath),
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Add'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (addresses.isLoading && addresses.addresses.isEmpty)
+                  const SliverPadding(
+                    padding: EdgeInsets.all(AppSpacing.x24),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                  )
+                else if (addresses.addresses.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.x16, 0, AppSpacing.x16, AppSpacing.x24),
+                    sliver: SliverToBoxAdapter(
+                      child: AppCard(
+                        padding: const EdgeInsets.all(AppSpacing.x16),
+                        child: Row(
+                          children: [
+                            Container(
+                              height: 44,
+                              width: 44,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(AppRadius.r16),
+                              ),
+                              child: Icon(Icons.location_on_outlined, color: theme.colorScheme.onSurfaceVariant),
+                            ),
+                            const SizedBox(width: AppSpacing.x12),
+                            Expanded(
+                              child: Text(
+                                'Add an address (with landmarks) for faster confirmations.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.x16, 0, AppSpacing.x16, AppSpacing.x24),
+                    sliver: SliverList.separated(
+                      itemCount: addresses.addresses.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.x10),
+                      itemBuilder: (context, index) {
+                        final a = addresses.addresses[index];
+                        return _AddressCard(
+                          title: a.title,
+                          subtitle: a.subtitle,
+                          isDefault: a.isDefault,
+                          onEdit: () => context.push(AddressEditScreen.routePath, extra: a),
+                          onSetDefault: () => context.read<AddressProvider>().setDefault(a.id),
+                          onDelete: () async {
+                            final addressProvider = context.read<AddressProvider>();
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('Delete address?'),
+                                  content: Text('Remove “${a.title}”?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(context).pop(true),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (ok == true) {
+                              await addressProvider.deleteAddress(a.id);
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            )
+          : SafeArea(
+              child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.x16),
+                child: AppEmptyState(
+                  title: 'Welcome',
+                  body: 'Log in to save addresses, track orders, and reorder in one tap.',
+                  icon: Icons.person_outline,
+                  actionLabel: AppStrings.logIn,
+                  onAction: () => context.push(LoginScreen.routePath),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _AccountHero extends StatelessWidget {
+  const _AccountHero({
+    required this.name,
+    required this.phone,
+    required this.isGuest,
+    required this.note,
+    required this.onEdit,
+    required this.onLogout,
+  });
+
+  final String name;
+  final String? phone;
+  final bool isGuest;
+  final String? note;
+  final VoidCallback onEdit;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayName = (name.trim().isEmpty) ? (isGuest ? 'Guest' : 'Account') : name;
+
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 64,
+        left: AppSpacing.x16,
+        right: AppSpacing.x16,
+        bottom: AppSpacing.x16,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withValues(alpha: 0.18),
+            theme.colorScheme.surface.withValues(alpha: 0.0),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.94, end: 1),
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, child) => Transform.scale(scale: v, child: child),
+        child: AppCard(
+          padding: const EdgeInsets.all(AppSpacing.x16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppCard(
+                  Container(
+                    height: 56,
+                    width: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primary,
+                          theme.colorScheme.secondary,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.r20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        displayName.characters.first.toUpperCase(),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.x12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -41,227 +250,204 @@ class AccountScreen extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                (profileProvider.profile?.name ?? (auth.isGuest ? 'Guest' : '')),
+                                displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.2,
+                                  letterSpacing: -0.3,
                                 ),
                               ),
                             ),
-                            if (auth.isGuest)
-                              Chip(
-                                label: const Text('Guest'),
-                                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                            if (isGuest)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                                ),
+                                child: Text(
+                                  'Guest',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.x8),
+                        const SizedBox(height: AppSpacing.x6),
                         Text(
-                          profileProvider.profile?.phone ?? 'Add your phone number for delivery updates.',
+                          phone ?? 'Add your phone number for delivery updates.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             height: 1.25,
                           ),
                         ),
-                        if ((profileProvider.profile?.defaultDeliveryNote ?? '').trim().isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.x8),
-                          Text(
-                            profileProvider.profile!.defaultDeliveryNote!,
-                            style: theme.textTheme.bodyMedium?.copyWith(height: 1.25),
-                          ),
-                        ],
-                        const SizedBox(height: AppSpacing.x12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => context.push(ProfileSetupScreen.routePath),
-                                child: const Text('Edit profile'),
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.x12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  await context.read<AuthProvider>().signOut();
-                                },
-                                child: const Text('Log out'),
-                              ),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.x16),
-                  Row(
+                ],
+              ),
+              if ((note ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.x12),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.x12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppRadius.r16),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Saved addresses',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () => context.push(AddressEditScreen.routePath),
-                        child: const Text('Add'),
+                      Icon(Icons.note_alt_outlined, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: AppSpacing.x10),
+                      Expanded(
+                        child: Text(
+                          note!,
+                          style: theme.textTheme.bodySmall?.copyWith(height: 1.25),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.x10),
-                  if (addresses.isLoading && addresses.addresses.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(AppSpacing.x16),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  else if (addresses.addresses.isEmpty)
-                    AppCard(
-                      padding: const EdgeInsets.all(AppSpacing.x16),
-                      child: Row(
-                        children: [
-                          Container(
-                            height: 44,
-                            width: 44,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(AppRadius.r16),
-                            ),
-                            child: Icon(Icons.location_on_outlined, color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                          const SizedBox(width: AppSpacing.x12),
-                          Expanded(
-                            child: Text(
-                              'Add an address (with landmarks) for faster confirmations.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                height: 1.25,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: addresses.addresses.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.x10),
-                      itemBuilder: (context, index) {
-                        final a = addresses.addresses[index];
-                        return AppCard(
-                          padding: const EdgeInsets.all(AppSpacing.x14),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                height: 44,
-                                width: 44,
-                                decoration: BoxDecoration(
-                                  color: a.isDefault
-                                      ? theme.colorScheme.primaryContainer
-                                      : theme.colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(AppRadius.r16),
-                                ),
-                                child: Icon(
-                                  Icons.location_on_rounded,
-                                  color: a.isDefault
-                                      ? theme.colorScheme.onPrimaryContainer
-                                      : theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.x12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            a.title,
-                                            style: theme.textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: -0.2,
-                                            ),
-                                          ),
-                                        ),
-                                        if (a.isDefault)
-                                          Chip(
-                                            label: const Text('Default'),
-                                            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: AppSpacing.x6),
-                                    Text(
-                                      a.subtitle,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                    const SizedBox(height: AppSpacing.x10),
-                                    Row(
-                                      children: [
-                                        TextButton(
-                                          onPressed: () => context.push(AddressEditScreen.routePath, extra: a),
-                                          child: const Text('Edit'),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        TextButton(
-                                          onPressed: () => context.read<AddressProvider>().setDefault(a.id),
-                                          child: const Text('Set default'),
-                                        ),
-                                        const Spacer(),
-                                        IconButton(
-                                          tooltip: 'Delete',
-                                          onPressed: () async {
-                                            final addressProvider = context.read<AddressProvider>();
-                                            final ok = await showDialog<bool>(
-                                              context: context,
-                                              builder: (context) {
-                                                return AlertDialog(
-                                                  title: const Text('Delete address?'),
-                                                  content: Text('Remove “${a.title}”?'),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.of(context).pop(false),
-                                                      child: const Text('Cancel'),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () => Navigator.of(context).pop(true),
-                                                      child: const Text('Delete'),
-                                                    ),
-                                                  ],
-                                                );
-                                              },
-                                            );
-                                            if (ok == true) {
-                                              await addressProvider.deleteAddress(a.id);
-                                            }
-                                          },
-                                          icon: const Icon(Icons.delete_outline),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                ),
+              ],
+              const SizedBox(height: AppSpacing.x14),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Edit profile'),
                     ),
-                  const SizedBox(height: AppSpacing.x24),
+                  ),
+                  const SizedBox(width: AppSpacing.x12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onLogout,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Log out'),
+                    ),
+                  ),
                 ],
-              )
-            : AppEmptyState(
-                title: 'Welcome',
-                body: 'Log in to save addresses, track orders, and reorder in one tap.',
-                icon: Icons.person_outline,
-                actionLabel: AppStrings.logIn,
-                onAction: () => context.push(LoginScreen.routePath),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressCard extends StatelessWidget {
+  const _AddressCard({
+    required this.title,
+    required this.subtitle,
+    required this.isDefault,
+    required this.onEdit,
+    required this.onSetDefault,
+    required this.onDelete,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool isDefault;
+  final VoidCallback onEdit;
+  final VoidCallback onSetDefault;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.x14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 44,
+            width: 44,
+            decoration: BoxDecoration(
+              color: isDefault ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppRadius.r16),
+            ),
+            child: Icon(
+              Icons.location_on_rounded,
+              color: isDefault ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.x12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                    if (isDefault)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: theme.colorScheme.outlineVariant),
+                        ),
+                        child: Text(
+                          'Default',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.x6),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.x10),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
+                    ),
+                    const SizedBox(width: 6),
+                    TextButton.icon(
+                      onPressed: onSetDefault,
+                      icon: const Icon(Icons.star_outline_rounded, size: 18),
+                      label: const Text('Set default'),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Delete',
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
