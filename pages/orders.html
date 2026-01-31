@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orders • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Orders</div>
+          <div class="muted" style="font-size: var(--text-sm)">Inbox • Kitchen • Dispatch • Reports</div>
+        </div>
+        <div class="tabs" style="margin-left:auto;">
+          <button class="tab active" data-tab="inbox">Inbox</button>
+          <button class="tab" data-tab="kitchen">Kitchen</button>
+          <button class="tab" data-tab="dispatch">Dispatch</button>
+          <button class="tab" data-tab="reports">Reports</button>
+        </div>
+      </div>
+
+      <div class="page">
+        <!-- Inbox -->
+        <section data-section="inbox">
+          <div class="flex-between" style="margin-bottom: var(--space-3); gap:12px; align-items:flex-end;">
+            <div class="chips" id="statusTabs" style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="pill active" data-status="all">All</button>
+              <button class="pill" data-status="placed">Placed</button>
+              <button class="pill" data-status="confirmed">Confirmed</button>
+              <button class="pill" data-status="preparing">Preparing</button>
+              <button class="pill" data-status="ready">Ready</button>
+              <button class="pill" data-status="en_route">Out for delivery</button>
+              <button class="pill" data-status="delivered">Delivered</button>
+              <button class="pill" data-status="cancelled">Cancelled</button>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input id="searchInput" placeholder="Search order id / address" style="height:36px; padding:0 12px; border:1px solid var(--color-border); border-radius:10px; min-width:220px;">
+              <select id="paymentStatus" style="height:36px; border:1px solid var(--color-border); border-radius:10px;">
+                <option value="">Payment - all</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
+              <input type="date" id="dateFrom" style="height:36px; border:1px solid var(--color-border); border-radius:10px;">
+              <input type="date" id="dateTo" style="height:36px; border:1px solid var(--color-border); border-radius:10px;">
+              <input type="number" id="minTotal" placeholder="Min total" style="height:36px; width:120px; padding:0 10px; border:1px solid var(--color-border); border-radius:10px;">
+              <button id="exportCsv" class="btn">Export CSV</button>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;">
+            <table class="table" id="ordersTable">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Status</th><th>Total</th><th>Payment</th><th>Address</th><th>Created</th><th>Chat</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Kitchen -->
+        <section data-section="kitchen" style="display:none;">
+          <div class="flex-between" style="margin-bottom:var(--space-3);">
+            <div>
+              <div class="font-semibold">Kitchen screen</div>
+              <div class="muted text-sm">Preparing & Ready queues</div>
+            </div>
+          </div>
+          <div class="card-grid" id="kitchenGrid"></div>
+        </section>
+
+        <!-- Dispatch -->
+        <section data-section="dispatch" style="display:none;">
+          <div class="flex-between" style="margin-bottom:var(--space-3);">
+            <div>
+              <div class="font-semibold">Dispatch</div>
+              <div class="muted text-sm">Assign riders & track</div>
+            </div>
+          </div>
+          <div class="card-grid" id="dispatchGrid"></div>
+        </section>
+
+        <!-- Reports -->
+        <section data-section="reports" style="display:none;">
+          <div class="card-grid" id="reportCards"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="orderDrawer" class="drawer">
+    <header>
+      <div>
+        <div class="font-bold" id="drawerTitle">Order</div>
+        <div class="muted text-sm" id="drawerSubtitle"></div>
+      </div>
+      <button class="btn ghost" id="closeDrawer">✕</button>
+    </header>
+    <div class="content" id="drawerContent"></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import {
+      fetchOrdersAdvanced,
+      fetchOrderDetails,
+      updateOrderStatus,
+      fetchChatMessages,
+      sendChatMessage,
+      fetchOrdersForStatus,
+      fetchRiders,
+      exportOrdersCsv,
+    } from "../js/api.js";
+    import { statusLabel, fmtMoney, fmtDateTime, debounce } from "../js/utils.js";
+    import { subscribeRealtime } from "../js/realtime.js";
+
+    renderSidebar("orders.html");
+    const { user } = await requireAuth();
+
+    const tbody = document.querySelector("#ordersTable tbody");
+    const statusTabs = Array.from(document.querySelectorAll("#statusTabs .pill"));
+    const sectionTabs = Array.from(document.querySelectorAll(".tab"));
+    const sections = Array.from(document.querySelectorAll("section[data-section]"));
+    const drawer = document.getElementById("orderDrawer");
+    const drawerContent = document.getElementById("drawerContent");
+    const drawerTitle = document.getElementById("drawerTitle");
+    const drawerSubtitle = document.getElementById("drawerSubtitle");
+
+    let currentStatus = "all";
+    let currentOrders = [];
+
+    sectionTabs.forEach((btn) =>
+      btn.addEventListener("click", () => {
+        sectionTabs.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        sections.forEach((s) => (s.style.display = s.dataset.section === btn.dataset.tab ? "" : "none"));
+        if (btn.dataset.tab === "kitchen") loadKitchen();
+        if (btn.dataset.tab === "dispatch") loadDispatch();
+        if (btn.dataset.tab === "reports") loadReports();
+      })
+    );
+
+    statusTabs.forEach((btn) =>
+      btn.addEventListener("click", () => {
+        statusTabs.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentStatus = btn.dataset.status;
+        loadOrders();
+      })
+    );
+
+    document.getElementById("searchInput").addEventListener("input", debounce(loadOrders, 220));
+    document.getElementById("paymentStatus").addEventListener("change", loadOrders);
+    document.getElementById("dateFrom").addEventListener("change", loadOrders);
+    document.getElementById("dateTo").addEventListener("change", loadOrders);
+    document.getElementById("minTotal").addEventListener("change", loadOrders);
+    document.getElementById("exportCsv").addEventListener("click", exportCsvFile);
+    document.getElementById("closeDrawer").addEventListener("click", () => drawer.classList.remove("show"));
+
+    loadOrders();
+    const unsubscribe = subscribeRealtime({
+      onOrders: (payload) => {
+        if (payload.eventType === "INSERT") {
+          showToast("New order just arrived");
+        }
+        loadOrders();
+      },
+    });
+    window.addEventListener("beforeunload", unsubscribe);
+
+    async function loadOrders() {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await fetchOrdersAdvanced({
+        status: currentStatus === "all" ? null : currentStatus,
+        search: document.getElementById("searchInput").value.trim(),
+        paymentStatus: document.getElementById("paymentStatus").value || null,
+        dateFrom: document.getElementById("dateFrom").value || null,
+        dateTo: document.getElementById("dateTo").value || null,
+        minTotal: document.getElementById("minTotal").value || null,
+      });
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`;
+        return;
+      }
+      currentOrders = data || [];
+      if (!currentOrders.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">No orders for this view</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = currentOrders
+        .map((o) => {
+          const address = o.address_snapshot?.address || o.address_snapshot?.label || "";
+          return `
+          <tr class="clickable" data-id="${o.id}">
+            <td>#${o.id.slice(0, 8)}</td>
+            <td>${statusLabel(o.status)}</td>
+            <td>${fmtMoney(o.total)}</td>
+            <td><span class="chip">${o.payment_method} • ${o.payment_status}</span></td>
+            <td>${address}</td>
+            <td>${fmtDateTime(o.created_at)}</td>
+            <td><span class="badge">${o.chat_unread || 0} unread</span></td>
+          </tr>`;
+        })
+        .join("");
+      tbody.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => openDrawer(row.dataset.id)));
+    }
+
+    async function openDrawer(id) {
+      drawer.classList.add("show");
+      drawerTitle.textContent = `Order #${id.slice(0, 8)}`;
+      drawerSubtitle.textContent = "Loading…";
+      drawerContent.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+      const { order, items, timeline, chat } = await fetchOrderDetails(id);
+      if (order.error) {
+        drawerContent.innerHTML = `<div class="muted">Error loading order: ${order.error.message}</div>`;
+        return;
+      }
+      const o = order.data;
+      const address = o.address_snapshot?.address || o.address_snapshot?.label || "No address";
+      const itemHtml = (items.data || [])
+        .map(
+          (i) => `<div class="flex-between"><div>${i.name_snapshot} ×${i.qty}</div><div>${fmtMoney(i.price)}</div></div>`
+        )
+        .join("");
+      const timelineHtml = (timeline.data || [])
+        .map((t) => `<div class="flex-between"><div>${statusLabel(t.status)}</div><div class="muted text-sm">${fmtDateTime(t.created_at)}</div></div>`)
+        .join("");
+      const actions = nextActions(o.status)
+        .map((s) => `<button class="chip-btn" data-action="${s}">${statusLabel(s)}</button>`)
+        .join("");
+      drawerSubtitle.textContent = `${statusLabel(o.status)} • ${fmtMoney(o.total)}`;
+      drawerContent.innerHTML = `
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="flex-between"><div class="font-semibold">Customer</div><div class="text-sm muted">${o.user_id.slice(0,8)}</div></div>
+          <div class="muted text-sm">${address}</div>
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold" style="margin-bottom:8px;">Items</div>
+          ${itemHtml || '<div class="muted text-sm">No items</div>'}
+          <div class="divider" style="margin:10px 0; border-top:1px solid var(--color-border);"></div>
+          <div class="flex-between text-sm"><span>Subtotal</span><span>${fmtMoney(o.subtotal)}</span></div>
+          <div class="flex-between text-sm"><span>Delivery</span><span>${fmtMoney(o.delivery_fee)}</span></div>
+          <div class="flex-between text-sm"><span>Discount</span><span>${fmtMoney(o.discount)}</span></div>
+          <div class="flex-between font-semibold"><span>Total</span><span>${fmtMoney(o.total)}</span></div>
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="flex-between" style="margin-bottom:8px;">
+            <div class="font-semibold">Timeline</div>
+            <div class="flex" style="gap:8px;">${actions}</div>
+          </div>
+          ${timelineHtml || '<div class="muted text-sm">No events yet</div>'}
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold" style="margin-bottom:6px;">Order Chat</div>
+          <div id="chatMessages" class="stack" style="gap:8px; max-height:220px; overflow:auto;"></div>
+          <div class="flex" style="gap:6px; margin-top:8px;">
+            <input id="chatInput" placeholder="Type a message" style="flex:1; border:1px solid var(--color-border); border-radius:10px; padding:8px 10px;">
+            <button class="btn primary" id="sendChat">Send</button>
+          </div>
+        </div>
+      `;
+      drawerContent.querySelectorAll("[data-action]").forEach((btn) =>
+        btn.addEventListener("click", () => changeStatus(id, btn.dataset.action))
+      );
+
+      if (chat.data?.id) {
+        renderChat(chat.data.id);
+        drawerContent.querySelector("#sendChat").addEventListener("click", () => sendChat(chat.data.id));
+      } else {
+        drawerContent.querySelector("#chatMessages").innerHTML = `<div class="muted text-sm">No chat yet</div>`;
+      }
+    }
+
+    function nextActions(status) {
+      switch (status) {
+        case "placed":
+          return ["confirmed", "cancelled"];
+        case "confirmed":
+          return ["preparing", "cancelled"];
+        case "preparing":
+          return ["ready", "cancelled"];
+        case "ready":
+          return ["en_route", "cancelled"];
+        case "en_route":
+          return ["delivered", "cancelled"];
+        default:
+          return [];
+      }
+    }
+
+    async function changeStatus(id, status) {
+      const { error } = await updateOrderStatus(id, status);
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      showToast(`Order moved to ${statusLabel(status)}`);
+      loadOrders();
+      openDrawer(id);
+    }
+
+    async function renderChat(chatId) {
+      const list = drawerContent.querySelector("#chatMessages");
+      list.innerHTML = `<div class="skeleton" style="height:24px;"></div>`;
+      const { data, error } = await fetchChatMessages(chatId);
+      if (error) {
+        list.innerHTML = `<div class="muted text-sm">Chat error: ${error.message}</div>`;
+        return;
+      }
+      if (!data.length) {
+        list.innerHTML = `<div class="muted text-sm">No messages</div>`;
+        return;
+      }
+      list.innerHTML = data
+        .map(
+          (m) =>
+            `<div class="card" style="padding:8px 10px; box-shadow:none; border:1px solid var(--color-border);">
+              <div class="flex-between text-sm"><span>${m.sender_id === user.id ? "Staff" : "Customer"}</span><span class="muted text-xs">${fmtDateTime(m.created_at)}</span></div>
+              <div>${m.message}</div>
+            </div>`
+        )
+        .join("");
+      list.scrollTop = list.scrollHeight;
+    }
+
+    async function sendChat(chatId) {
+      const input = drawerContent.querySelector("#chatInput");
+      if (!input.value.trim()) return;
+      const { error } = await sendChatMessage({ chatId, message: input.value.trim(), userId: user.id });
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      input.value = "";
+      renderChat(chatId);
+    }
+
+    async function loadKitchen() {
+      const grid = document.getElementById("kitchenGrid");
+      grid.innerHTML = `<div class="skeleton" style="height:80px;"></div>`;
+      const prep = await fetchOrdersForStatus("preparing");
+      const ready = await fetchOrdersForStatus("ready");
+      const cards = [];
+      (prep.data || []).forEach((o) =>
+        cards.push(`
+          <div class="card" style="border:1px solid var(--color-border);">
+            <div class="flex-between"><div class="font-semibold">#${o.id.slice(0,8)}</div><span class="tag warning">Preparing</span></div>
+            <div class="muted text-sm">${fmtDateTime(o.created_at)}</div>
+            <button class="btn primary" data-change="${o.id}" data-to="ready" style="width:100%; margin-top:10px;">Mark Ready</button>
+          </div>
+        `)
+      );
+      (ready.data || []).forEach((o) =>
+        cards.push(`
+          <div class="card" style="border:1px solid var(--color-border); background:#ecfdf3;">
+            <div class="flex-between"><div class="font-semibold">#${o.id.slice(0,8)}</div><span class="tag success">Ready</span></div>
+            <div class="muted text-sm">${fmtDateTime(o.created_at)}</div>
+            <button class="btn" data-change="${o.id}" data-to="en_route" style="width:100%; margin-top:10px;">Send Out</button>
+          </div>
+        `)
+      );
+      grid.innerHTML = cards.join("") || `<div class="muted">No active kitchen orders</div>`;
+      grid.querySelectorAll("[data-change]").forEach((btn) =>
+        btn.addEventListener("click", () => changeStatus(btn.dataset.change, btn.dataset.to))
+      );
+    }
+
+    async function loadDispatch() {
+      const grid = document.getElementById("dispatchGrid");
+      grid.innerHTML = `<div class="skeleton" style="height:80px;"></div>`;
+      const ready = await fetchOrdersForStatus("ready");
+      const riders = await fetchRiders();
+      const riderList = (riders.data || []).map((r) => `<span class="chip">${r.name || "Rider"} (${r.phone || "-"})</span>`).join("");
+      const cards = (ready.data || []).map(
+        (o) => `
+        <div class="card" style="border:1px solid var(--color-border);">
+          <div class="flex-between"><div class="font-semibold">#${o.id.slice(0,8)}</div><span class="tag info">Ready</span></div>
+          <div class="muted text-sm">${o.address_snapshot?.address || ""}</div>
+          <div class="muted text-sm" style="margin:6px 0;">Riders: ${riderList || "None"}</div>
+          <div class="flex" style="gap:8px;">
+            <button class="btn" data-change="${o.id}" data-to="en_route" style="flex:1;">Out for delivery</button>
+            <button class="btn primary" data-change="${o.id}" data-to="delivered" style="flex:1;">Delivered</button>
+          </div>
+        </div>`
+      );
+      grid.innerHTML = cards.join("") || `<div class="muted">No orders to dispatch</div>`;
+      grid.querySelectorAll("[data-change]").forEach((btn) =>
+        btn.addEventListener("click", () => changeStatus(btn.dataset.change, btn.dataset.to))
+      );
+    }
+
+    async function loadReports() {
+      const report = document.getElementById("reportCards");
+      const lastWeek = await fetchOrdersAdvanced({ limit: 200 });
+      const orders = lastWeek.data || [];
+      const today = new Date();
+      const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const todayOrders = orders.filter((o) => new Date(o.created_at) >= startToday);
+      const revenueToday = todayOrders.reduce((acc, o) => acc + Number(o.total || 0), 0);
+      const prepared = orders.filter((o) => o.status === "preparing").length;
+      const delivered = orders.filter((o) => o.status === "delivered").length;
+      report.innerHTML = `
+        <div class="card"><div class="muted text-sm">Today Revenue</div><div class="font-bold" style="font-size:24px;">${fmtMoney(revenueToday)}</div></div>
+        <div class="card"><div class="muted text-sm">Orders today</div><div class="font-bold" style="font-size:24px;">${todayOrders.length}</div></div>
+        <div class="card"><div class="muted text-sm">Delivered (7d)</div><div class="font-bold" style="font-size:24px;">${delivered}</div></div>
+        <div class="card"><div class="muted text-sm">Preparing now</div><div class="font-bold" style="font-size:24px;">${prepared}</div></div>
+      `;
+    }
+
+    async function exportCsvFile() {
+      const { data, error } = await exportOrdersCsv({
+        dateFrom: document.getElementById("dateFrom").value || null,
+        dateTo: document.getElementById("dateTo").value || null,
+      });
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      const rows = [
+        ["id", "status", "total", "payment_method", "payment_status", "created_at"],
+        ...(data || []).map((o) => [o.id, o.status, o.total, o.payment_method, o.payment_status, o.created_at]),
+      ];
+      const csv = rows.map((r) => r.join(",")).join("\\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "orders.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast("Exported orders.csv");
+    }
+  </script>
+</body>
+</html>

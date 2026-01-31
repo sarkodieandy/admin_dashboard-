@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Settings</div>
+          <div class="muted" style="font-size: var(--text-sm)">Business rules & preferences</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card-grid">
+          <div class="card">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Restaurant / Branch</div>
+            <label class="label">Restaurant name</label>
+            <input id="restName" class="input" placeholder="Finger Licking Restaurant" />
+            <label class="label" style="margin-top:8px;">Phone</label>
+            <input id="restPhone" class="input" placeholder="+233..." />
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+              <label class="chip-btn" id="toggleOpen">Open</label>
+              <label class="chip-btn" id="toggleBusy">Busy mode</label>
+            </div>
+            <textarea id="busyNote" class="input" rows="2" placeholder="High demand, expect delays" style="margin-top:8px;"></textarea>
+            <button class="btn primary" id="saveBusiness" style="margin-top:10px;">Save business</button>
+          </div>
+
+          <div class="card">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Operating hours</div>
+            <label class="label">Open</label>
+            <input id="openTime" class="input" type="time" />
+            <label class="label" style="margin-top:6px;">Close</label>
+            <input id="closeTime" class="input" type="time" />
+            <small class="muted">Split hours & holidays can be added later.</small>
+            <button class="btn primary" id="saveHours" style="margin-top:10px;">Save hours</button>
+          </div>
+
+          <div class="card">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Order settings</div>
+            <label class="label">Minimum order amount</label>
+            <input id="minOrder" class="input" type="number" step="0.01" />
+            <label class="label" style="margin-top:6px;">Auto-cancel unpaid after (minutes)</label>
+            <input id="autoCancel" class="input" type="number" min="0" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <label class="chip-btn" id="toggleDelivery">Delivery enabled</label>
+              <label class="chip-btn" id="togglePickup">Pickup enabled</label>
+              <label class="chip-btn" id="toggleSchedule">Scheduled orders</label>
+            </div>
+            <button class="btn primary" id="saveOrders" style="margin-top:10px;">Save order rules</button>
+          </div>
+
+          <div class="card">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Delivery settings (global)</div>
+            <label class="label">Base delivery fee</label>
+            <input id="baseFee" class="input" type="number" step="0.01" />
+            <label class="label" style="margin-top:6px;">Free radius (km)</label>
+            <input id="freeRadius" class="input" type="number" step="0.1" />
+            <label class="label" style="margin-top:6px;">Per km fee after free radius</label>
+            <input id="perKm" class="input" type="number" step="0.01" />
+            <label class="label" style="margin-top:6px;">Max distance (km)</label>
+            <input id="maxDistance" class="input" type="number" step="0.1" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+              <label class="chip-btn" id="toggleCOD">Cash on delivery (local only)</label>
+            </div>
+            <button class="btn primary" id="saveDelivery" style="margin-top:10px;">Save delivery settings</button>
+          </div>
+
+          <div class="card">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Notifications & Chat</div>
+            <label class="label">Sound alerts</label>
+            <label class="chip-btn" id="toggleSound">Sound on</label>
+            <label class="label" style="margin-top:6px;">Auto-close chat after delivery (hours)</label>
+            <input id="chatClose" class="input" type="number" min="0" />
+            <label class="label" style="margin-top:6px;">Profanity filter</label>
+            <label class="chip-btn" id="toggleProfanity">Filter on</label>
+            <button class="btn primary" id="saveNotify" style="margin-top:10px;">Save notifications</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Permissions</div>
+          <div class="muted text-sm">Settings are intended for admin/owner. Staff access should be restricted.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { loadDeliverySettings, saveDeliverySettings } from "../js/api.js";
+
+    renderSidebar("settings.html");
+    await requireAuth();
+
+    const stateKey = "adminSettingsLocal";
+    const state = JSON.parse(localStorage.getItem(stateKey) || "{}");
+
+    const bindToggle = (id, key, labelOn = "On", labelOff = "Off") => {
+      const el = document.getElementById(id);
+      const update = () => {
+        const active = !!state[key];
+        el.classList.toggle("active", active);
+        el.textContent = active ? labelOn : labelOff;
+      };
+      el.addEventListener("click", () => {
+        state[key] = !state[key];
+        update();
+      });
+      update();
+    };
+
+    // Bind toggles
+    bindToggle("toggleOpen", "isOpen", "Open", "Closed");
+    bindToggle("toggleBusy", "isBusy", "Busy", "Normal");
+    bindToggle("toggleDelivery", "delivery", "Delivery on", "Delivery off");
+    bindToggle("togglePickup", "pickup", "Pickup on", "Pickup off");
+    bindToggle("toggleSchedule", "schedule", "Scheduled on", "Scheduled off");
+    bindToggle("toggleCOD", "cod", "COD on", "COD off");
+    bindToggle("toggleSound", "sound", "Sound on", "Sound off");
+    bindToggle("toggleProfanity", "profanity", "Filter on", "Filter off");
+
+    const setVal = (id, key) => {
+      const el = document.getElementById(id);
+      if (state[key]) el.value = state[key];
+    };
+    setVal("restName", "restName");
+    setVal("restPhone", "restPhone");
+    setVal("busyNote", "busyNote");
+    setVal("openTime", "openTime");
+    setVal("closeTime", "closeTime");
+    setVal("autoCancel", "autoCancel");
+    setVal("chatClose", "chatClose");
+
+    document.getElementById("saveBusiness").addEventListener("click", () => {
+      state.restName = document.getElementById("restName").value;
+      state.restPhone = document.getElementById("restPhone").value;
+      state.busyNote = document.getElementById("busyNote").value;
+      persist();
+      showToast("Business settings saved (local)");
+    });
+
+    document.getElementById("saveHours").addEventListener("click", () => {
+      state.openTime = document.getElementById("openTime").value;
+      state.closeTime = document.getElementById("closeTime").value;
+      persist();
+      showToast("Hours saved (local)");
+    });
+
+    document.getElementById("saveOrders").addEventListener("click", () => {
+      state.autoCancel = document.getElementById("autoCancel").value;
+      persist();
+      showToast("Order rules saved (local)");
+    });
+
+    document.getElementById("saveNotify").addEventListener("click", () => {
+      state.chatClose = document.getElementById("chatClose").value;
+      persist();
+      showToast("Notification prefs saved (local)");
+    });
+
+    // Delivery settings persisted to Supabase delivery_settings singleton table
+    loadDeliverySettings().then(({ data }) => {
+      if (data) {
+        document.getElementById("minOrder").value = data.minimum_order_amount ?? "";
+        document.getElementById("baseFee").value = data.base_fee ?? "";
+        document.getElementById("freeRadius").value = data.free_radius_km ?? "";
+        document.getElementById("perKm").value = data.per_km_fee_after_free_radius ?? "";
+        document.getElementById("maxDistance").value = data.max_delivery_distance_km ?? "";
+      }
+    });
+
+    document.getElementById("saveDelivery").addEventListener("click", async () => {
+      const payload = {
+        base_fee: Number(document.getElementById("baseFee").value || 0),
+        free_radius_km: Number(document.getElementById("freeRadius").value || 0),
+        per_km_fee_after_free_radius: Number(document.getElementById("perKm").value || 0),
+        max_delivery_distance_km: Number(document.getElementById("maxDistance").value || 0),
+        minimum_order_amount: Number(document.getElementById("minOrder").value || 0),
+      };
+      const { error } = await saveDeliverySettings(payload);
+      if (error) return showToast(error.message);
+      showToast("Delivery settings saved");
+    });
+
+    function persist() {
+      localStorage.setItem(stateKey, JSON.stringify(state));
+    }
+  </script>
+</body>
+</html>

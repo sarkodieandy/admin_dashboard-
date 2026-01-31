@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Analytics</div>
+          <div class="muted" style="font-size: var(--text-sm)">Performance overview</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="flex" style="gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <button class="btn ghost" data-range="today">Today</button>
+          <button class="btn ghost" data-range="7">Last 7 days</button>
+          <button class="btn ghost" data-range="30">Last 30 days</button>
+          <input type="date" id="from" class="input" style="width:160px;">
+          <input type="date" id="to" class="input" style="width:160px;">
+          <select id="type" class="input" style="width:160px;">
+            <option value="">All types</option>
+            <option value="delivery">Delivery</option>
+            <option value="pickup">Pickup</option>
+          </select>
+          <select id="payment" class="input" style="width:180px;">
+            <option value="">All payments</option>
+            <option value="cash">Cash</option>
+            <option value="momo">Momo</option>
+          </select>
+          <button class="btn primary" id="apply">Apply</button>
+        </div>
+
+        <div class="kpi-grid" id="kpis"></div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Revenue by day</div>
+          <canvas id="revChart" height="220"></canvas>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Orders by status</div>
+          <canvas id="statusChart" height="200"></canvas>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="font-bold" style="margin-bottom: var(--space-2);">Orders by payment</div>
+          <canvas id="payChart" height="200"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script type="module">
+    import { renderSidebar } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fmtMoney } from "../js/utils.js";
+    import { fetchOrdersRange } from "../js/api.js";
+
+    renderSidebar("analytics.html");
+    await requireAuth();
+
+    let revChart, statusChart, payChart;
+    document.querySelectorAll("[data-range]").forEach((btn) => btn.addEventListener("click", () => quickRange(btn.dataset.range)));
+    document.getElementById("apply").addEventListener("click", load);
+
+    quickRange("7");
+
+    function quickRange(range) {
+      const to = new Date();
+      const from = new Date();
+      if (range === "today") {
+        from.setHours(0,0,0,0);
+      } else if (range === "7") {
+        from.setDate(to.getDate() - 6);
+      } else if (range === "30") {
+        from.setDate(to.getDate() - 29);
+      }
+      document.getElementById("from").value = from.toISOString().slice(0,10);
+      document.getElementById("to").value = to.toISOString().slice(0,10);
+      load();
+    }
+
+    async function load() {
+      const dateFrom = document.getElementById("from").value || null;
+      const dateTo = document.getElementById("to").value || null;
+      const type = document.getElementById("type").value || null;
+      const payment_method = document.getElementById("payment").value || null;
+      const { data, error } = await fetchOrdersRange({ dateFrom, dateTo, type, payment_method });
+      if (error) return console.error(error);
+      const orders = data || [];
+      const kpi = computeKpis(orders);
+      renderKpis(kpi);
+      renderRevenueChart(orders, dateFrom, dateTo);
+      renderStatusChart(orders);
+      renderPaymentChart(orders);
+    }
+
+    function computeKpis(orders) {
+      const totalOrders = orders.length;
+      const revenue = orders.reduce((s, o) => s + Number(o.total || 0), 0);
+      const delivered = orders.filter((o) => o.status === "delivered").length;
+      const cancelled = orders.filter((o) => o.status === "cancelled").length;
+      const aov = totalOrders ? revenue / totalOrders : 0;
+      const completion = totalOrders ? Math.round((delivered / totalOrders) * 100) : 0;
+      const uniqueCustomers = new Set(orders.map((o) => o.user_id)).size;
+      const repeat = totalOrders ? Math.round(((orders.map(o=>o.user_id).filter((id, idx, arr)=>arr.indexOf(id)!==idx).length ? 1 : 0) / uniqueCustomers) * 100) : 0;
+      return { totalOrders, revenue, aov, delivered, cancelled, completion, uniqueCustomers, repeat };
+    }
+
+    function renderKpis(k) {
+      const kpis = document.getElementById("kpis");
+      kpis.innerHTML = `
+        <div class="card kpi-card"><div class="muted text-sm">Total Orders</div><div class="font-bold" style="font-size:24px;">${k.totalOrders}</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Revenue</div><div class="font-bold" style="font-size:24px;">${fmtMoney(k.revenue)}</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Avg Order Value</div><div class="font-bold" style="font-size:24px;">${fmtMoney(k.aov)}</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Completion rate</div><div class="font-bold" style="font-size:24px;">${k.completion}%</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Cancelled</div><div class="font-bold" style="font-size:24px;">${k.cancelled}</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Active customers</div><div class="font-bold" style="font-size:24px;">${k.uniqueCustomers}</div></div>
+        <div class="card kpi-card"><div class="muted text-sm">Repeat customers</div><div class="font-bold" style="font-size:24px;">${k.repeat}%</div></div>
+      `;
+    }
+
+    function renderRevenueChart(orders, dateFrom, dateTo) {
+      const map = new Map();
+      orders.forEach((o) => {
+        const d = new Date(o.created_at).toISOString().slice(0, 10);
+        map.set(d, (map.get(d) || 0) + Number(o.total || 0));
+      });
+      const labels = Array.from(map.keys()).sort();
+      const data = labels.map((d) => map.get(d));
+      if (revChart) revChart.destroy();
+      revChart = new Chart(document.getElementById("revChart"), {
+        type: "line",
+        data: { labels, datasets: [{ label: "Revenue", data, borderColor: "#22c55e", fill: false }] },
+        options: { plugins: { legend: { display: false } }, tension: 0.3, scales: { y: { beginAtZero: true } } },
+      });
+    }
+
+    function renderStatusChart(orders) {
+      const statuses = ["placed", "confirmed", "preparing", "ready", "en_route", "delivered", "cancelled"];
+      const counts = statuses.map((s) => orders.filter((o) => o.status === s).length);
+      if (statusChart) statusChart.destroy();
+      statusChart = new Chart(document.getElementById("statusChart"), {
+        type: "pie",
+        data: { labels: statuses, datasets: [{ data: counts, backgroundColor: ["#cbd5e1","#a5b4fc","#fde68a","#fbbf24","#34d399","#22c55e","#f87171"] }] },
+        options: { plugins: { legend: { position: "bottom" } } },
+      });
+    }
+
+    function renderPaymentChart(orders) {
+      const payments = ["cash", "momo", "card"];
+      const counts = payments.map((p) => orders.filter((o) => o.payment_method === p).length);
+      if (payChart) payChart.destroy();
+      payChart = new Chart(document.getElementById("payChart"), {
+        type: "doughnut",
+        data: { labels: payments, datasets: [{ data: counts, backgroundColor: ["#0ea5e9","#22c55e","#a855f7"] }] },
+        options: { plugins: { legend: { position: "bottom" } } },
+      });
+    }
+  </script>
+</body>
+</html>

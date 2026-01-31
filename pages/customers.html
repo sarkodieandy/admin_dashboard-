@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customers • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Customers</div>
+          <div class="muted" style="font-size: var(--text-sm)">Directory & customer history</div>
+        </div>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <input id="search" class="input" placeholder="Search phone or name" style="max-width:220px;">
+          <select id="sort" class="input" style="max-width:200px;">
+            <option value="recent">Sort: newest</option>
+            <option value="orders">Sort: most orders</option>
+            <option value="spend">Sort: highest spend</option>
+          </select>
+          <select id="filterStatus" class="input" style="max-width:160px;">
+            <option value="">All</option>
+            <option value="vip">VIP</option>
+            <option value="flagged">Flagged</option>
+            <option value="new">New (≤2 orders)</option>
+          </select>
+        </div>
+      </div>
+      <div class="page">
+        <div class="card" style="padding:0;">
+          <table class="table" id="custTable">
+            <thead>
+              <tr>
+                <th>Name</th><th>Phone</th><th>Last order</th><th>Orders</th><th>Spend</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="custDrawer" class="drawer">
+    <header>
+      <div>
+        <div class="font-bold" id="drawerName">Customer</div>
+        <div class="muted text-sm" id="drawerPhone"></div>
+      </div>
+      <button class="btn ghost" id="drawerClose">✕</button>
+    </header>
+    <div class="content" id="drawerContent"></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fmtDateTime, fmtMoney, debounce } from "../js/utils.js";
+    import { fetchCustomers, fetchOrdersByUsers, fetchAddressesForUser } from "../js/api.js";
+
+    renderSidebar("customers.html");
+    await requireAuth();
+
+    const tbody = document.querySelector("#custTable tbody");
+    const drawer = document.getElementById("custDrawer");
+    const drawerContent = document.getElementById("drawerContent");
+    const drawerName = document.getElementById("drawerName");
+    const drawerPhone = document.getElementById("drawerPhone");
+    document.getElementById("drawerClose").addEventListener("click", () => drawer.classList.remove("show"));
+    document.getElementById("search").addEventListener("input", debounce(renderRows, 180));
+    document.getElementById("sort").addEventListener("change", renderRows);
+    document.getElementById("filterStatus").addEventListener("change", renderRows);
+
+    let customers = [];
+    let aggregates = new Map(); // userId -> stats
+
+    load();
+
+    async function load() {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const { data, error } = await fetchCustomers(250);
+      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
+      customers = data || [];
+      const orders = await fetchOrdersByUsers(customers.map((c) => c.id));
+      if (!orders.error) {
+        aggregates = buildAggregates(orders.data || []);
+      }
+      renderRows();
+    }
+
+    function buildAggregates(orders) {
+      const map = new Map();
+      for (const o of orders) {
+        const entry = map.get(o.user_id) || { lastOrder: null, totalOrders: 0, spend: 0 };
+        entry.totalOrders += 1;
+        entry.spend += Number(o.total || 0);
+        if (!entry.lastOrder || new Date(o.created_at) > new Date(entry.lastOrder)) entry.lastOrder = o.created_at;
+        map.set(o.user_id, entry);
+      }
+      return map;
+    }
+
+    function renderRows() {
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      const sort = document.getElementById("sort").value;
+      const filterStatus = document.getElementById("filterStatus").value;
+      let rows = customers.filter((c) => {
+        const phone = (c.phone || "").toLowerCase();
+        const name = (c.name || "").toLowerCase();
+        return !q || phone.includes(q) || name.includes(q);
+      });
+      rows.sort((a, b) => {
+        const aggA = aggregates.get(a.id) || {};
+        const aggB = aggregates.get(b.id) || {};
+        if (sort === "orders") return (aggB.totalOrders || 0) - (aggA.totalOrders || 0);
+        if (sort === "spend") return (aggB.spend || 0) - (aggA.spend || 0);
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+      rows = rows.filter((c) => {
+        const agg = aggregates.get(c.id) || {};
+        const status = deriveStatus(agg);
+        if (!filterStatus) return true;
+        if (filterStatus === "vip") return status === "VIP";
+        if (filterStatus === "flagged") return status === "Flagged";
+        if (filterStatus === "new") return (agg.totalOrders || 0) <= 2;
+        return true;
+      });
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">No customers found</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows
+        .map((c) => {
+          const agg = aggregates.get(c.id) || {};
+          const last = agg.lastOrder ? fmtDateTime(agg.lastOrder) : "—";
+          const orders = agg.totalOrders || 0;
+          const spend = agg.spend ? fmtMoney(agg.spend) : "—";
+          const status = deriveStatus(agg);
+          const statusClass = status === "VIP" ? "info" : status === "Flagged" ? "danger" : "success";
+          return `
+          <tr data-id="${c.id}" class="clickable">
+            <td>${c.name || "Guest"}</td>
+            <td>${c.phone || "—"}</td>
+            <td>${last}</td>
+            <td>${orders}</td>
+            <td>${spend}</td>
+            <td><span class="tag ${statusClass}">${status}</span></td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <a class="btn ghost" href="tel:${c.phone || ""}">Call</a>
+                <button class="btn ghost" data-chat="${c.id}">Chat</button>
+                <button class="btn ghost" data-view="${c.id}">View</button>
+              </div>
+            </td>
+          </tr>`;
+        })
+        .join("");
+      tbody.querySelectorAll("[data-view]").forEach((btn) => btn.addEventListener("click", () => openDrawer(btn.dataset.view)));
+      tbody.querySelectorAll("[data-chat]").forEach((btn) => btn.addEventListener("click", () => {
+        // Jump to chats page (order-based only)
+        window.location.href = "chats.html";
+      }));
+    }
+
+    function deriveStatus(agg) {
+      const orders = agg.totalOrders || 0;
+      const cancelRate = agg.totalOrders
+        ? Math.round(((agg.cancelled || 0) / agg.totalOrders) * 100)
+        : 0;
+      if (orders >= 5 && (agg.spend || 0) >= 500) return "VIP";
+      if (cancelRate >= 30 && orders >= 3) return "Flagged";
+      return "Active";
+    }
+
+    async function openDrawer(id) {
+      const cust = customers.find((c) => c.id === id);
+      const agg = aggregates.get(id) || {};
+      drawerName.textContent = cust?.name || "Guest";
+      drawerPhone.textContent = cust?.phone || "—";
+      drawer.classList.add("show");
+      drawerContent.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+      const { data: addresses } = await fetchAddressesForUser(id);
+      const ordersRes = await fetchOrdersByUsers([id]);
+      const orders = ordersRes.data || [];
+      const avg = agg.totalOrders ? agg.spend / agg.totalOrders : 0;
+      const cancelRate = agg.totalOrders
+        ? Math.round(((orders.filter((o) => o.status === "cancelled").length) / agg.totalOrders) * 100)
+        : 0;
+      drawerContent.innerHTML = `
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold">Summary</div>
+          <div class="muted text-sm">Joined ${fmtDateTime(cust.created_at)}</div>
+          <div class="flex-between text-sm" style="margin-top:8px;"><span>Total orders</span><strong>${agg.totalOrders || 0}</strong></div>
+          <div class="flex-between text-sm"><span>Total spend</span><strong>${fmtMoney(agg.spend || 0)}</strong></div>
+          <div class="flex-between text-sm"><span>Avg order</span><strong>${fmtMoney(avg)}</strong></div>
+          <div class="flex-between text-sm"><span>Cancel rate</span><strong>${cancelRate}%</strong></div>
+        </div>
+        ${activeOrderCard(orders)}
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold">Addresses</div>
+          ${(addresses && addresses.length)
+            ? addresses.map(a=>`<div style="margin-top:6px;"><div class="font-semibold">${a.label}</div><div class="muted text-sm">${a.address}</div><div class="muted text-xs">${a.landmark||""}</div></div>`).join("")
+            : '<div class="muted text-sm">No addresses saved</div>'
+          }
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="flex-between"><div class="font-semibold">Orders</div><small class="muted">Latest</small></div>
+          ${(orders.length)
+            ? orders.slice(0,8).map(o=>`
+              <div class="flex-between text-sm" style="padding:6px 0; border-bottom:1px solid var(--color-border);">
+                <div>#${o.id.slice(0,8)} • ${fmtDateTime(o.created_at)}<br><span class="muted">${o.payment_method} • ${o.status}</span></div>
+                <strong>${fmtMoney(o.total)}</strong>
+              </div>`).join("")
+            : '<div class="muted text-sm">No orders yet</div>'
+          }
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold">Notes (local)</div>
+          <textarea class="input" rows="3" placeholder="Prefers no pepper / call before arrival"></textarea>
+          <small class="muted">Notes are not saved to server (RLS-safe placeholder).</small>
+        </div>
+      `;
+    }
+
+    function activeOrderCard(orders) {
+      const active = orders.find((o) => !["delivered", "cancelled"].includes(o.status));
+      if (!active) return "";
+      return `
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border); background:#f8fafc;">
+          <div class="flex-between">
+            <div class="font-semibold">Active Order</div>
+            <span class="tag info">${active.status}</span>
+          </div>
+          <div class="muted text-sm">#${active.id.slice(0,8)} • ${fmtDateTime(active.created_at)}</div>
+          <div class="flex-between" style="margin-top:8px;">
+            <div class="muted text-sm">${active.payment_method}</div>
+            <strong>${fmtMoney(active.total)}</strong>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <a class="btn primary" href="chats.html">Open Chat</a>
+            <a class="btn ghost" href="tel:${drawerPhone.textContent || ""}">Call</a>
+          </div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

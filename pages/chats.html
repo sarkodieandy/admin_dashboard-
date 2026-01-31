@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chats • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Chats</div>
+          <div class="muted" style="font-size: var(--text-sm)">Order-based inbox</div>
+        </div>
+      </div>
+      <div class="page">
+        <div class="grid" style="display:grid; grid-template-columns: 280px 1fr 320px; gap: var(--space-4); align-items:start;">
+          <div class="card" style="min-height: 60vh;">
+            <div class="flex-between" style="margin-bottom: var(--space-3);">
+              <div class="font-bold">Conversations</div>
+              <button id="reload" class="btn ghost">Reload</button>
+            </div>
+            <div id="convList" class="space-y-2"></div>
+          </div>
+          <div class="card" style="min-height: 60vh;">
+            <div class="font-bold" style="margin-bottom: var(--space-2);">Thread</div>
+            <div id="thread" style="min-height:300px; max-height:420px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
+            <form id="chatForm" style="margin-top: var(--space-3); display:flex; gap:8px;">
+              <input id="chatInput" style="flex:1; height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;" placeholder="Type message..." />
+              <button class="btn primary" type="submit">Send</button>
+            </form>
+          </div>
+          <div class="card">
+            <div class="font-bold">Order context</div>
+            <div id="orderCtx" class="muted text-sm" style="margin-top: var(--space-2);">Select a conversation</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script type="module">
+    import { renderSidebar, showToast } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchChats, fetchChatMessages, sendChatMessage } from "../js/api.js";
+    import { fmtDateTime } from "../js/utils.js";
+    import { subscribeRealtime } from "../js/realtime.js";
+
+    renderSidebar("chats.html");
+    const session = await requireAuth();
+
+    const convList = document.getElementById("convList");
+    const thread = document.getElementById("thread");
+    const orderCtx = document.getElementById("orderCtx");
+    let activeConv = null;
+
+    document.getElementById("reload").addEventListener("click", loadConversations);
+    document.getElementById("chatForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = document.getElementById("chatInput").value.trim();
+      if (!text || !activeConv) return;
+      const { error } = await sendChatMessage({ chatId: activeConv, message: text, userId: session?.user?.id });
+      if (error) { showToast(error.message); return; }
+      document.getElementById("chatInput").value = "";
+      openConversation(activeConv);
+    });
+
+    loadConversations();
+    const unsub = subscribeRealtime({ onMessages: () => activeConv && openConversation(activeConv) });
+    window.addEventListener("beforeunload", unsub);
+
+    async function loadConversations() {
+      convList.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const { data, error } = await fetchChats();
+      if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+      if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
+      convList.innerHTML = data.map(c => `
+        <button class="nav-item" data-id="${c.id}">
+          <span>💬</span><span>Order #${c.order_id?.slice(0,8) || "—"}</span>
+        </button>`).join("");
+      convList.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => openConversation(btn.dataset.id)));
+    }
+
+    async function openConversation(id) {
+      activeConv = id;
+      thread.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const { data, error } = await fetchChatMessages(id);
+      if (error) { thread.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+      if (!data || data.length === 0) { thread.innerHTML = `<div class="muted">No messages</div>`; return; }
+      thread.innerHTML = data.map(m => `
+        <div class="card" style="padding:10px;">
+          <div class="muted text-xs">${m.sender_id === session?.user?.id ? "Staff" : "Customer"} • ${fmtDateTime(m.created_at)}</div>
+          <div class="font-semibold">${m.message || ""}</div>
+        </div>`).join("");
+      orderCtx.textContent = `Chat ${id.slice(0,8)} • ${data.length} messages`;
+    }
+  </script>
+</body>
+</html>

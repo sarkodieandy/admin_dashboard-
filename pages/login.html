@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finger Licking Admin – Login</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body class="layout" style="display:flex; align-items:center; justify-content:center;">
+  <div class="card" style="max-width:360px; width:100%; padding:24px;">
+    <h2 style="margin:0 0 8px 0;">Sign in</h2>
+    <p class="muted" style="margin:0 0 16px 0;">Staff/Admin accounts only.</p>
+    <form id="loginForm" class="space-y">
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required style="height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius: var(--radius-sm);" />
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required style="height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius: var(--radius-sm);" />
+      </div>
+      <button class="btn primary" type="submit" style="width:100%;">Sign in</button>
+    </form>
+    <div id="loginError" class="muted" style="margin-top:10px; color: var(--color-danger);"></div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "../js/supabaseClient.js";
+    import { showToast } from "../js/ui.js";
+    const supabase = createClient();
+    const form = document.getElementById("loginForm");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        document.getElementById("loginError").textContent = error.message;
+        return;
+      }
+      showToast("Signed in");
+      window.location.href = "dashboard.html";
+    });
+  </script>
+</body>
+</html>
