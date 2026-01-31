@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,6 +62,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.initState();
     _controller = PageController();
     _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) => _autoAdvance());
+    // Warm up first couple of assets to avoid flashes/jank on first swipe.
+    _precacheAround(0);
   }
 
   @override
@@ -120,6 +123,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  void _precacheAround(int index) {
+    if (!mounted) return;
+    // Pre-cache current + next so transitions feel instant.
+    final targets = <int>{index, index + 1}.where((i) => i >= 0 && i < _pages.length).toList();
+    for (final i in targets) {
+      final page = _pages[i];
+      // Fire-and-forget: keeps lints happy and prevents holding BuildContext across async gaps.
+      unawaited(precacheImage(CachedNetworkImageProvider(page.imageUrl), context));
+      unawaited(precacheImage(CachedNetworkImageProvider(page.iconUrl), context));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -132,7 +147,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onPointerDown: (_) => _pauseAuto(),
             child: PageView.builder(
               controller: _controller,
-              onPageChanged: (i) => setState(() => _index = i),
+              onPageChanged: (i) {
+                setState(() => _index = i);
+                _precacheAround(i);
+              },
               itemCount: _pages.length,
               itemBuilder: (context, i) => _OnboardingPage(
                 data: _pages[i],

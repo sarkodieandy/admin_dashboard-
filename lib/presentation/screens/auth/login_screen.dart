@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -82,15 +83,13 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            _bgUrl,
+          CachedNetworkImage(
+            imageUrl: _bgUrl,
             fit: BoxFit.cover,
-            filterQuality: FilterQuality.high,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Container(color: theme.colorScheme.surfaceContainerHighest);
-            },
-            errorBuilder: (context, error, stackTrace) {
+            filterQuality: FilterQuality.medium,
+            fadeInDuration: const Duration(milliseconds: 120),
+            placeholder: (context, url) => Container(color: theme.colorScheme.surfaceContainerHighest),
+            errorWidget: (context, url, error) {
               return Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
