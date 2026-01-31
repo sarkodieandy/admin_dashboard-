@@ -198,7 +198,9 @@ class _ChatOrderTileState extends State<_ChatOrderTile> {
                 (widget.lastSeen == null || widget.lastSeen!.isBefore(lastMessage.createdAt));
             // keep parent informed of latest timestamp
             if (lastMessage != null) {
-              widget.onReceive(widget.order.id, lastMessage.createdAt);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                widget.onReceive(widget.order.id, lastMessage.createdAt);
+              });
             }
 
             return AppCard(
