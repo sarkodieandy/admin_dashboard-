@@ -7,39 +7,137 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
 </head>
-<body class="layout" style="display:flex; align-items:center; justify-content:center;">
-  <div class="card" style="max-width:360px; width:100%; padding:24px;">
-    <h2 style="margin:0 0 8px 0;">Sign in</h2>
-    <p class="muted" style="margin:0 0 16px 0;">Staff/Admin accounts only.</p>
-    <form id="loginForm" class="space-y">
-      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" required style="height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius: var(--radius-sm);" />
+<body>
+  <div class="auth-shell">
+    <section class="auth-hero">
+      <div class="auth-brand">
+        <div class="auth-logo">FL</div>
+        <div>
+          <div class="font-extrabold">Finger Licking</div>
+          <div class="muted text-sm">Restaurant Admin</div>
+        </div>
       </div>
-      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" required style="height:40px; padding:0 10px; border:1px solid var(--color-border); border-radius: var(--radius-sm);" />
+
+      <h1 class="auth-title">Run service like a pro.</h1>
+      <div class="muted auth-subtitle">
+        Manage orders in real time, chat with customers, update the menu, and track performance — all from one dashboard.
       </div>
-      <button class="btn primary" type="submit" style="width:100%;">Sign in</button>
-    </form>
-    <div id="loginError" class="muted" style="margin-top:10px; color: var(--color-danger);"></div>
+
+      <div class="auth-bullets" aria-hidden="true">
+        <div class="auth-bullet">
+          <span class="dot"></span>
+          <div>
+            <div class="font-semibold">Realtime operations</div>
+            <div class="muted text-sm">New orders, status updates, and message alerts.</div>
+          </div>
+        </div>
+        <div class="auth-bullet">
+          <span class="dot"></span>
+          <div>
+            <div class="font-semibold">Secure staff access</div>
+            <div class="muted text-sm">Only allowlisted staff/admin accounts can sign in.</div>
+          </div>
+        </div>
+        <div class="auth-bullet">
+          <span class="dot"></span>
+          <div>
+            <div class="font-semibold">Premium, simple UI</div>
+            <div class="muted text-sm">Built for fast kitchen + front-desk workflows.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <header>
+          <div>
+            <h2>Sign in</h2>
+            <div class="muted text-sm hint">Use your staff/admin email and password.</div>
+          </div>
+          <button class="btn ghost icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme">🌓</button>
+        </header>
+
+        <form id="loginForm" novalidate>
+          <div class="input-row">
+            <label class="label" for="email">Email</label>
+            <input id="email" name="email" type="email" class="input" autocomplete="email" placeholder="name@restaurant.com" required />
+          </div>
+
+          <div class="input-row">
+            <label class="label" for="password">Password</label>
+            <div class="input-group">
+              <input id="password" name="password" type="password" class="input" autocomplete="current-password" placeholder="••••••••" required />
+              <button class="input-affix" id="togglePw" type="button" aria-label="Show password" title="Show password">👁️</button>
+            </div>
+          </div>
+
+          <div class="auth-actions">
+            <label style="display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="remember" checked />
+              <span class="muted text-sm">Stay signed in</span>
+            </label>
+            <a class="muted text-sm" href="https://supabase.com/dashboard" target="_blank" rel="noreferrer">Forgot password?</a>
+          </div>
+
+          <button class="btn primary" id="submitBtn" type="submit" style="width:100%;">
+            <span id="submitLabel">Sign in</span>
+          </button>
+          <div id="loginError" class="auth-error text-sm" role="status" aria-live="polite"></div>
+          <div class="auth-legal muted text-xs">
+            By signing in, you agree to follow staff access policies. Customers should use the mobile app.
+          </div>
+        </form>
+      </div>
+    </section>
   </div>
 
   <script type="module">
     import { createClient } from "../js/supabaseClient.js";
-    import { showToast } from "../js/ui.js";
+    import { showToast, mountThemeToggle } from "../js/ui.js";
     const supabase = createClient();
     const form = document.getElementById("loginForm");
+    const errorEl = document.getElementById("loginError");
+    const submitBtn = document.getElementById("submitBtn");
+    const submitLabel = document.getElementById("submitLabel");
+    const pw = document.getElementById("password");
+
+    mountThemeToggle();
+    document.getElementById("themeBtn").addEventListener("click", () => {
+      document.getElementById("themeToggle")?.click?.();
+    });
+
+    document.getElementById("togglePw").addEventListener("click", () => {
+      const next = pw.type === "password" ? "text" : "password";
+      pw.type = next;
+      document.getElementById("togglePw").textContent = next === "password" ? "👁️" : "🙈";
+      document.getElementById("togglePw").setAttribute("aria-label", next === "password" ? "Show password" : "Hide password");
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      errorEl.textContent = "";
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
+      if (!email || !password) {
+        errorEl.textContent = "Enter your email and password.";
+        return;
+      }
+
+      submitBtn.classList.add("loading");
+      submitBtn.disabled = true;
+      submitLabel.innerHTML = `<span class="spinner" aria-hidden="true"></span> Signing in…`;
+
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        document.getElementById("loginError").textContent = error.message;
+        errorEl.textContent = error.message;
+        submitBtn.classList.remove("loading");
+        submitBtn.disabled = false;
+        submitLabel.textContent = "Sign in";
         return;
       }
       showToast("Signed in");

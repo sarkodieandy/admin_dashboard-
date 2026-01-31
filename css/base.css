@@ -51,3 +51,24 @@ img { max-width: 100%; display: block; }
   .layout { grid-template-columns: 72px 1fr; }
   .page { padding: var(--space-3); }
 }
+
+/* Minimal utility classes used across pages */
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-md { font-size: var(--text-md); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.text-3xl { font-size: var(--text-3xl); }
+
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+
+.space-y > * + * { margin-top: var(--space-3); }
+.space-y-2 > * + * { margin-top: var(--space-2); }
+.space-y-3 > * + * { margin-top: var(--space-3); }
+.space-y-4 > * + * { margin-top: var(--space-4); }
+
+.stack { display: flex; flex-direction: column; }
