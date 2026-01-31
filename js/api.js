@@ -177,7 +177,15 @@ export async function markAllNotificationsRead() {
 }
 
 export async function fetchRiders() {
-  return supabase.from("profiles").select("id,name,phone,role,created_at").eq("role", "rider");
+  return supabase
+    .from("profiles")
+    .select("id,name,phone,role,default_delivery_note,created_at")
+    .eq("role", "rider")
+    .order("created_at", { ascending: false });
+}
+
+export async function updateRider(id, payload) {
+  return supabase.from("profiles").update(payload).eq("id", id);
 }
 
 export async function fetchPromos(limit = 200) {

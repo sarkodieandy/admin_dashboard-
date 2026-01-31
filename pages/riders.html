@@ -20,49 +20,166 @@
       <div class="topbar">
         <div>
           <div class="font-bold">Riders</div>
-          <div class="muted" style="font-size: var(--text-sm)">Assignments overview</div>
+          <div class="muted" style="font-size: var(--text-sm)">Track & update rider contacts</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <button class="btn primary" id="refreshRiders">Reload</button>
         </div>
       </div>
       <div class="page">
         <div class="card">
-          <div class="font-bold" style="margin-bottom: var(--space-2);">Riders</div>
+          <div class="flex-between" style="margin-bottom: var(--space-2); gap:6px;">
+            <div>
+              <div class="font-semibold">Riders</div>
+              <div class="muted text-sm">Names, phones, and delivery notes</div>
+            </div>
+            <span class="badge-dot" aria-hidden="true"></span>
+          </div>
           <table class="table" id="ridersTable">
-            <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Last seen</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Added</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
-    </main>
+  </main>
+</div>
+<div class="modal-backdrop" id="riderModal">
+  <div class="modal">
+    <header>
+      <div>
+        <div class="font-semibold" id="riderModalTitle">Edit rider</div>
+        <div class="muted text-sm" id="riderModalSubtitle"></div>
+      </div>
+      <button class="btn ghost" id="closeRiderModal">✕</button>
+    </header>
+    <form id="riderForm">
+      <label class="label">Name</label>
+      <input class="input" id="riderName" required />
+      <label class="label">Phone</label>
+      <input class="input" id="riderPhone" />
+      <label class="label">Delivery notes</label>
+      <textarea class="input" id="riderNote" rows="3" placeholder="Optional reminder for kitchen/rider"></textarea>
+      <button class="btn primary" type="submit">Save rider</button>
+    </form>
   </div>
-  <script type="module">
-    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+</div>
+<script type="module">
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime } from "../js/utils.js";
-    import { fetchRiders } from "../js/api.js";
+    import { fetchRiders, updateRider } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("riders.html");
     mountThemeToggle();
     await requireAuth();
-    mountNotifications({ supabase: getClient() });
+    const supabase = getClient();
+    mountNotifications({ supabase });
+
     const tbody = document.querySelector("#ridersTable tbody");
+    const riderModal = document.getElementById("riderModal");
+    const riderForm = document.getElementById("riderForm");
+    const riderName = document.getElementById("riderName");
+    const riderPhone = document.getElementById("riderPhone");
+    const riderNote = document.getElementById("riderNote");
+    const riderSubtitle = document.getElementById("riderModalSubtitle");
+    const riderModalTitle = document.getElementById("riderModalTitle");
+    let riderMap = new Map();
+    let editingRider = null;
+
+    document.getElementById("refreshRiders").addEventListener("click", load);
+    document.getElementById("closeRiderModal").addEventListener("click", () => riderModal.classList.remove("show"));
+    riderModal.addEventListener("click", (event) => {
+      if (event.target === riderModal) riderModal.classList.remove("show");
+    });
+
+    riderForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!editingRider) return;
+      const payload = {
+        name: riderName.value.trim() || null,
+        phone: riderPhone.value.trim() || null,
+        default_delivery_note: riderNote.value.trim() || null,
+      };
+      const { error } = await updateRider(editingRider.id, payload);
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      showToast('Rider saved');
+      riderModal.classList.remove("show");
+      await load();
+    });
+
     load();
 
     async function load() {
-      tbody.innerHTML = `<tr><td colspan="4"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5"><div class="skeleton" style="height:32px;"></div></td></tr>`;
       const { data, error } = await fetchRiders();
-      if (error) { tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${error.message}</td></tr>`; return; }
-      if (!data || data.length===0) { tbody.innerHTML = `<tr><td colspan="4" class="muted">No riders</td></tr>`; return; }
-      tbody.innerHTML = data.map(r=>`
-        <tr>
-          <td>${r.name||"—"}</td>
-          <td>${r.phone||"—"}</td>
-          <td><span class="tag info">Rider</span></td>
-          <td class="muted text-sm">${fmtDateTime(r.created_at||"")}</td>
-        </tr>`).join("");
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message}</td></tr>`;
+        return;
+      }
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">No riders yet</td></tr>`;
+        return;
+      }
+      riderMap = new Map((data || []).map((r) => [r.id, r]));
+      tbody.innerHTML = (data || [])
+        .map((r) => {
+          const note = r.default_delivery_note?.trim() || 'No notes';
+          const notePreview = note.length > 40 ? note.slice(0, 40) + '…' : note;
+          return `
+          <tr data-id="${r.id}">
+            <td>
+              <div class="font-semibold">${escapeHtml(r.name || 'Rider')}</div>
+              <div class="muted text-xs">${fmtDateTime(r.created_at || '')}</div>
+            </td>
+            <td>${escapeHtml(r.phone || '—')}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="chip">${escapeHtml(r.role)}</span>
+                <span class="muted text-xs">${escapeHtml(notePreview)}</span>
+              </div>
+            </td>
+            <td><span class="muted text-sm">Updated ${fmtDateTime(r.created_at || '')}</span></td>
+            <td>
+              <button class="btn ghost" data-edit-rider="${r.id}">Edit</button>
+            </td>
+          </tr>`;
+        })
+        .join("");
+      tbody.querySelectorAll("[data-edit-rider]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const rider = riderMap.get(button.dataset.editRider);
+          if (!rider) return;
+          editingRider = rider;
+          riderName.value = rider.name || '';
+          riderPhone.value = rider.phone || '';
+          riderNote.value = rider.default_delivery_note || '';
+          riderModalTitle.textContent = `Edit rider ${rider.name?.split(' ').shift() || 'profile'}`;
+          riderSubtitle.textContent = `Role: ${rider.role} • Created ${fmtDateTime(rider.created_at || '')}`;
+          riderModal.classList.add("show");
+        });
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
     }
   </script>
 </body>
