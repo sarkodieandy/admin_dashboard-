@@ -34,9 +34,22 @@
   padding: 10px 12px; border-radius: var(--radius-sm);
   color: #c9d5ea; border: 1px solid transparent;
   transition: background var(--dur-fast) var(--ease-soft), color var(--dur-fast) var(--ease-soft), border-color var(--dur-fast) var(--ease-soft), transform var(--dur-fast) var(--ease-soft);
+  position: relative;
 }
 .nav-item.active { background: rgba(96,165,250,0.16); border-color: rgba(96,165,250,0.35); color: #e7f1ff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
-.nav-item:hover { background: rgba(255,255,255,0.04); color: #fff; transform: translateX(2px); }
+.nav-item:hover { background: rgba(255,255,255,0.04); color: #fff; transform: translateX(3px); }
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  width: 4px;
+  height: calc(100% - 20px);
+  border-radius: 999px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-soft), height var(--dur-fast) var(--ease-soft);
+}
+.nav-item.active::before { background: #60a5fa; height: calc(100% - 16px); }
 
 .topbar {
   height: 68px;
@@ -58,6 +71,7 @@
 }
 .table tbody tr:hover { background: rgba(59,130,246,0.04); }
 .table tbody tr.new-row { animation: pulse-row 0.9s ease-out; }
+.table tbody tr { transition: background var(--dur-fast) var(--ease-soft); }
 .badge {
   display: inline-flex;
   align-items: center;
@@ -138,7 +152,7 @@
   background: var(--color-panel);
   border-left: 1px solid var(--color-border);
   box-shadow: -8px 0 30px rgba(15, 23, 42, 0.18);
-  transition: right 180ms ease;
+  transition: right var(--dur-med) var(--ease-soft), box-shadow var(--dur-med) var(--ease-soft);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -161,6 +175,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-3);
+}
+.card {
+  transition: transform var(--dur-med) var(--ease-soft), box-shadow var(--dur-med) var(--ease-soft), border-color var(--dur-med) var(--ease-soft);
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(96,165,250,0.35);
 }
 
 .tag {
