@@ -67,12 +67,14 @@
             <div class="font-bold" style="margin-bottom: var(--space-2);">Delivery settings (global)</div>
             <label class="label">Base delivery fee</label>
             <input id="baseFee" class="input" type="number" step="0.01" />
-            <label class="label" style="margin-top:6px;">Free delivery threshold</label>
-            <input id="freeThreshold" class="input" type="number" step="0.01" />
+            <label class="label" style="margin-top:6px;">Free radius (km)</label>
+            <input id="freeRadius" class="input" type="number" step="0.1" />
+            <label class="label" style="margin-top:6px;">Per km fee after free radius</label>
+            <input id="perKm" class="input" type="number" step="0.01" />
             <label class="label" style="margin-top:6px;">Max distance (km)</label>
             <input id="maxDistance" class="input" type="number" step="0.1" />
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-              <label class="chip-btn" id="toggleCOD">Cash on delivery</label>
+              <label class="chip-btn" id="toggleCOD">Cash on delivery (local only)</label>
             </div>
             <button class="btn primary" id="saveDelivery" style="margin-top:10px;">Save delivery settings</button>
           </div>
@@ -175,7 +177,8 @@
       if (data) {
         document.getElementById("minOrder").value = data.minimum_order_amount ?? "";
         document.getElementById("baseFee").value = data.base_fee ?? "";
-        document.getElementById("freeThreshold").value = data.free_radius_km ?? "";
+        document.getElementById("freeRadius").value = data.free_radius_km ?? "";
+        document.getElementById("perKm").value = data.per_km_fee_after_free_radius ?? "";
         document.getElementById("maxDistance").value = data.max_delivery_distance_km ?? "";
       }
     });
@@ -183,7 +186,8 @@
     document.getElementById("saveDelivery").addEventListener("click", async () => {
       const payload = {
         base_fee: Number(document.getElementById("baseFee").value || 0),
-        free_radius_km: Number(document.getElementById("freeThreshold").value || 0),
+        free_radius_km: Number(document.getElementById("freeRadius").value || 0),
+        per_km_fee_after_free_radius: Number(document.getElementById("perKm").value || 0),
         max_delivery_distance_km: Number(document.getElementById("maxDistance").value || 0),
         minimum_order_amount: Number(document.getElementById("minOrder").value || 0),
       };
