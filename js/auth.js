@@ -19,7 +19,7 @@ export async function requireAuth() {
     window.location.href = "login.html";
     return null;
   }
-  if (!["admin", "staff"].includes(profile.role)) {
+  if (!["super_admin", "branch_admin", "admin", "staff"].includes(profile.role)) {
     showToast("Access denied: staff only");
     try {
       await supabase.auth.signOut();

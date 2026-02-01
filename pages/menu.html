@@ -10,6 +10,37 @@
   <link rel="stylesheet" href="../css/pages.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .branch-switcher {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 12px;
+      gap: 4px;
+      color: var(--color-muted);
+    }
+    .branch-switcher select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      padding: 0 10px;
+      font-size: 14px;
+      min-width: 200px;
+    }
+    .branch-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #0d47a1;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -23,7 +54,11 @@
           <div class="font-bold">Menu</div>
           <div class="muted" style="font-size: var(--text-sm)">Categories • Items • Add-ons</div>
         </div>
-        <div style="margin-left:auto; display:flex; gap:8px;">
+        <div style="margin-left:auto; display:flex; gap:12px; align-items:center;">
+          <div class="branch-switcher">
+            <label for="branchSwitcherSelect">Branch</label>
+            <select id="branchSwitcherSelect"></select>
+          </div>
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <button id="addItemBtn" class="btn primary">Add Item</button>
           <button id="addCategoryBtn" class="btn">Add Category</button>
@@ -154,11 +189,23 @@
     } from "../js/api.js";
     import { fmtMoney } from "../js/utils.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import {
+      initBranchState,
+      registerBranchSwitcher,
+      getSelectedBranchId,
+      getBranchLabel,
+      onBranchChange,
+    } from "../js/branches.js";
 
     renderSidebar("menu.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
+      allowAll: profile.role === "super_admin",
+    });
+    onBranchChange(() => loadData());
 
     const catList = document.getElementById("catList");
     const filterCategory = document.getElementById("filterCategory");
@@ -184,10 +231,14 @@
 
     document.getElementById("itemForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      if (!branchId) return showToast("Select a branch before adding items");
       const fd = new FormData(e.target);
       const payload = Object.fromEntries(fd.entries());
       payload.base_price = Number(payload.base_price || 0);
       payload.is_sold_out = fd.get("is_sold_out") === "on";
+      payload.branch_id = branchId;
       const { error } = await insertMenuItem(payload);
       if (error) return showToast(error.message);
       showToast("Item added");
@@ -198,9 +249,12 @@
 
     document.getElementById("categoryForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      if (!branchId) return showToast("Select a branch before adding categories");
       const name = new FormData(e.target).get("name");
       const nextOrder = categories.length ? Math.max(...categories.map((c) => c.sort_order || 0)) + 1 : 0;
-      const { error } = await insertCategory(name, nextOrder);
+      const { error } = await insertCategory({ name, sort_order: nextOrder, branch_id: branchId });
       if (error) return showToast(error.message);
       showToast("Category added");
       toggleModal(categoryModal, false);
@@ -210,11 +264,15 @@
 
     document.getElementById("addonForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      if (!branchId) return showToast("Select a branch before adding add-ons");
       const fd = new FormData(e.target);
       const payload = {
         name: fd.get("name"),
         price: Number(fd.get("price") || 0),
         item_id: fd.get("item_id"),
+        branch_id: branchId,
       };
       const { error } = await insertAddon(payload);
       if (error) return showToast(error.message);
@@ -231,9 +289,11 @@
     loadData();
 
     async function loadData() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       catList.innerHTML = `<div class="skeleton" style="height:24px;"></div>`;
       itemsTbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const { cats, items: it } = await fetchMenu();
+      const { cats, items: it } = await fetchMenu({ branchId });
       if (cats.error) { catList.innerHTML = `<div class="muted">Error: ${cats.error.message}</div>`; return; }
       if (it.error) { itemsTbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${it.error.message}</td></tr>`; return; }
       categories = cats.data || [];
@@ -293,6 +353,7 @@
     }
 
     function renderItems() {
+      const rawBranch = getSelectedBranchId();
       let filtered = [...items];
       const q = searchInput.value.trim().toLowerCase();
       if (q) filtered = filtered.filter((i) => i.name.toLowerCase().includes(q));
@@ -309,13 +370,15 @@
       itemsTbody.innerHTML = filtered
         .map((m) => {
           const catName = categories.find((c) => c.id === m.category_id)?.name || "Uncategorized";
+          const branchChip =
+            rawBranch === "all" ? `<span class="branch-badge">${getBranchLabel(m.branch_id)}</span>` : "";
           return `
           <tr>
             <td>
               <div class="flex-between" style="gap:8px;">
                 ${m.image_url ? `<img src="${m.image_url}" alt="" style="width:48px; height:48px; object-fit:cover; border-radius:10px;">` : ""}
                 <div>
-                  <div class="font-semibold">${m.name}</div>
+                  <div class="font-semibold">${branchChip}${m.name}</div>
                   <div class="muted text-sm">${m.description || ""}</div>
                 </div>
               </div>
@@ -376,9 +439,11 @@
     }
 
     async function loadAddons() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const list = document.getElementById("addonList");
       list.innerHTML = `<div class="skeleton" style="height:24px;"></div>`;
-      const { data, error } = await fetchAddons();
+      const { data, error } = await fetchAddons({ branchId });
       if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       addons = data || [];
       if (!addons.length) { list.innerHTML = `<div class="muted text-sm">No add-ons yet</div>`; return; }

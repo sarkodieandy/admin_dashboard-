@@ -3,7 +3,7 @@ import { getClient } from "./auth.js";
 const supabase = getClient();
 
 const ORDER_FIELDS =
-  "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id";
+  "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id,branch_id";
 const DELIVERY_WITH_RIDER =
   "id,order_id,rider_id,status,assigned_at,picked_at,delivered_at,updated_at,rider:riders(id,name,phone,vehicle_type,is_active)";
 
@@ -14,6 +14,7 @@ export async function fetchOrdersAdvanced({
   dateFrom,
   dateTo,
   minTotal,
+  branchId,
   limit = 50,
   offset = 0,
 }) {
@@ -23,6 +24,7 @@ export async function fetchOrdersAdvanced({
   if (dateFrom) q = q.gte("created_at", dateFrom);
   if (dateTo) q = q.lte("created_at", dateTo);
   if (minTotal) q = q.gte("total", minTotal);
+  if (branchId) q = q.eq("branch_id", branchId);
   if (search) {
     q = q.or(`id.ilike.%${search}%,address_snapshot::text.ilike.%${search}%`);
   }
@@ -53,13 +55,19 @@ export async function updateOrderStatus(orderId, status) {
   return supabase.from("orders").update({ status }).eq("id", orderId);
 }
 
-export async function fetchMenu() {
-  const cats = await supabase.from("categories").select("id,name,is_active,sort_order").order("sort_order", { ascending: true });
-  const items = await supabase
+export async function fetchMenu({ branchId } = {}) {
+  let catsQ = supabase.from("categories").select("id,name,is_active,sort_order,branch_id").order("sort_order", { ascending: true });
+  let itemsQ = supabase
     .from("menu_items")
-    .select("id,name,base_price,description,is_active,is_sold_out,category_id,spice_level,image_url")
+    .select("id,name,base_price,description,is_active,is_sold_out,category_id,spice_level,image_url,branch_id")
     .order("created_at", { ascending: false })
     .limit(200);
+  if (branchId && branchId !== "all") {
+    catsQ = catsQ.eq("branch_id", branchId);
+    itemsQ = itemsQ.eq("branch_id", branchId);
+  }
+  const cats = await catsQ;
+  const items = await itemsQ;
   return { cats, items };
 }
 
@@ -71,20 +79,26 @@ export async function insertMenuItem(payload) {
   return supabase.from("menu_items").insert(payload);
 }
 
-export async function insertCategory(name, sort_order = 0) {
-  return supabase.from("categories").insert({ name, sort_order, is_active: true });
+export async function insertCategory({ name, sort_order = 0, branch_id }) {
+  return supabase.from("categories").insert({ name, sort_order, is_active: true, branch_id });
 }
 
 export async function updateCategory(id, payload) {
   return supabase.from("categories").update(payload).eq("id", id);
 }
 
-export async function fetchAddons() {
-  return supabase.from("item_addons").select("id,item_id,name,price,created_at").order("created_at", { ascending: false }).limit(200);
+export async function fetchAddons({ branchId } = {}) {
+  let q = supabase
+    .from("item_addons")
+    .select("id,item_id,name,price,created_at,branch_id")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (branchId && branchId !== "all") q = q.eq("branch_id", branchId);
+  return q;
 }
 
-export async function insertAddon({ item_id, name, price }) {
-  return supabase.from("item_addons").insert({ item_id, name, price });
+export async function insertAddon({ item_id, name, price, branch_id }) {
+  return supabase.from("item_addons").insert({ item_id, name, price, branch_id });
 }
 
 export async function deleteAddon(id) {
@@ -178,12 +192,14 @@ export async function markAllNotificationsRead() {
   return supabase.from("staff_notifications").update({ is_read: true }).eq("is_read", false);
 }
 
-export async function fetchRiders({ activeOnly = false, search = "" } = {}) {
+export async function fetchRiders({ activeOnly = false, search = "", branchId } = {}) {
   let q = supabase
     .from("riders")
-    .select("id,name,phone,vehicle_type,is_active,created_at")
+    // Use `*` to stay backward compatible if columns differ (e.g. default_delivery_note not yet migrated).
+    .select("*")
     .order("created_at", { ascending: false });
   if (activeOnly) q = q.eq("is_active", true);
+  if (branchId && branchId !== "all") q = q.eq("branch_id", branchId);
   if (search) {
     const term = `%${search}%`;
     q = q.or(`name.ilike.${term},phone.ilike.${term},vehicle_type.ilike.${term}`);
@@ -192,15 +208,25 @@ export async function fetchRiders({ activeOnly = false, search = "" } = {}) {
 }
 
 export async function updateRider(id, payload) {
-  return supabase.from("riders").update(payload).eq("id", id).select("id,name,phone,vehicle_type,is_active,created_at").maybeSingle();
+  const res = await supabase.from("riders").update(payload).eq("id", id).select("*").maybeSingle();
+  if (res.error && isMissingColumnError(res.error, "default_delivery_note") && "default_delivery_note" in payload) {
+    const safePayload = { ...payload };
+    delete safePayload.default_delivery_note;
+    const retry = await supabase.from("riders").update(safePayload).eq("id", id).select("*").maybeSingle();
+    return { ...retry, schemaFallback: retry.error ? false : true };
+  }
+  return { ...res, schemaFallback: false };
 }
 
 export async function insertRider(payload) {
-  return supabase
-    .from("riders")
-    .insert(payload)
-    .select("id,name,phone,vehicle_type,is_active,created_at")
-    .maybeSingle();
+  const res = await supabase.from("riders").insert(payload).select("*").maybeSingle();
+  if (res.error && isMissingColumnError(res.error, "default_delivery_note") && "default_delivery_note" in payload) {
+    const safePayload = { ...payload };
+    delete safePayload.default_delivery_note;
+    const retry = await supabase.from("riders").insert(safePayload).select("*").maybeSingle();
+    return { ...retry, schemaFallback: retry.error ? false : true };
+  }
+  return { ...res, schemaFallback: false };
 }
 
 export async function fetchDeliveryForOrder(orderId) {
@@ -239,6 +265,16 @@ export async function updateDeliveryStatus(deliveryId, status) {
     .maybeSingle();
 }
 
+export async function fetchBranches({ activeOnly = false } = {}) {
+  let q = supabase.from("branches").select("*").order("created_at", { ascending: false });
+  if (activeOnly) q = q.eq("is_active", true);
+  return q;
+}
+
+export async function upsertBranch(payload) {
+  return supabase.from("branches").upsert(payload, { onConflict: "id" }).select("*").maybeSingle();
+}
+
 export async function fetchPromos(limit = 200) {
   return supabase.from("promos").select("*").order("created_at", { ascending: false }).limit(limit);
 }
@@ -251,22 +287,29 @@ export async function updatePromo(id, payload) {
   return supabase.from("promos").update(payload).eq("id", id);
 }
 
-export async function fetchReviews(limit = 200) {
-  return supabase
+export async function fetchReviews({ limit = 200, branchId } = {}) {
+  let q = supabase
     .from("reviews")
-    .select("id,order_id,user_id,rating,comment,created_at", { count: "exact" })
+    .select("id,order_id,user_id,rating,comment,created_at,branch_id", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (branchId && branchId !== "all") q = q.eq("branch_id", branchId);
+  return q;
 }
 
-export async function fetchOrdersForStatus(status) {
-  return supabase.from("orders").select(ORDER_FIELDS).eq("status", status).order("created_at", { ascending: false }).limit(100);
+export async function fetchOrdersForStatus(status, branchId) {
+  let q = supabase.from("orders").select(ORDER_FIELDS).eq("status", status).order("created_at", { ascending: false }).limit(100);
+  if (branchId && branchId !== "all") {
+    q = q.eq("branch_id", branchId);
+  }
+  return q;
 }
 
-export async function exportOrdersCsv({ dateFrom, dateTo }) {
+export async function exportOrdersCsv({ dateFrom, dateTo, branchId }) {
   let q = supabase.from("orders").select(ORDER_FIELDS);
   if (dateFrom) q = q.gte("created_at", dateFrom);
   if (dateTo) q = q.lte("created_at", dateTo);
+  if (branchId && branchId !== "all") q = q.eq("branch_id", branchId);
   return q;
 }
 

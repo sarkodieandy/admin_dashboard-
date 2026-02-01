@@ -59,6 +59,23 @@
     .riders-table__header {
       margin-bottom: var(--space-2);
     }
+    .branch-switcher {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 12px;
+      gap: 4px;
+      color: var(--color-muted);
+    }
+    .branch-switcher select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      padding: 0 10px;
+      font-size: 14px;
+      min-width: 200px;
+    }
     @media (max-width: 720px) {
       .riders-hero {
         flex-direction: column;
@@ -82,7 +99,11 @@
           <div class="font-bold">Riders</div>
           <div class="muted" style="font-size: var(--text-sm)">Track & update rider contacts</div>
         </div>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+          <div class="branch-switcher">
+            <label for="branchSwitcherSelect">Branch</label>
+            <select id="branchSwitcherSelect"></select>
+          </div>
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <button class="btn primary" id="refreshRiders">Reload</button>
         </div>
@@ -174,12 +195,18 @@
     import { fmtDateTime } from "../js/utils.js";
     import { fetchRiders, updateRider, insertRider } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, getSelectedBranchId, onBranchChange } from "../js/branches.js";
 
     renderSidebar("riders.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     const supabase = getClient();
     mountNotifications({ supabase });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
+      allowAll: profile.role === "super_admin",
+    });
+    onBranchChange(() => load());
 
     const tbody = document.querySelector("#ridersTable tbody");
     const riderModal = document.getElementById("riderModal");
@@ -225,6 +252,12 @@
 
     riderForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      if (!editingRider && !branchId) {
+        showToast("Select a branch before creating a rider");
+        return;
+      }
       const payload = {
         name: riderName.value.trim() || null,
         phone: riderPhone.value.trim() || null,
@@ -240,7 +273,7 @@
         }
         showToast("Rider saved");
       } else {
-        const { error } = await insertRider(payload);
+        const { error } = await insertRider({ ...payload, branch_id: branchId });
         if (error) {
           showToast(error.message);
           return;
@@ -255,7 +288,9 @@
 
     async function load() {
       tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const { data, error } = await fetchRiders();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const { data, error } = await fetchRiders({ branchId });
       if (error) {
         tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
         updateStats([]);

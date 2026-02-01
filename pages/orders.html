@@ -10,6 +10,35 @@
   <link rel="stylesheet" href="../css/pages.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .branch-switcher {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 12px;
+      gap: 4px;
+      color: var(--color-muted);
+    }
+    .branch-switcher select {
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      padding: 0 10px;
+      font-size: 14px;
+    }
+    .branch-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #0d47a1;
+      font-size: 12px;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -23,7 +52,11 @@
           <div id="pageTitle" class="font-bold">Orders</div>
           <div class="muted" style="font-size: var(--text-sm)">Inbox • Kitchen • Dispatch • Reports</div>
         </div>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <div style="margin-left:auto; display:flex; align-items:center; gap:20px;">
+          <div class="branch-switcher">
+            <label for="branchSwitcherSelect">Branch</label>
+            <select id="branchSwitcherSelect"></select>
+          </div>
           <div class="tabs">
             <button class="tab active" data-tab="inbox">Inbox</button>
             <button class="tab" data-tab="kitchen">Kitchen</button>
@@ -160,14 +193,32 @@
       debounce,
       deliveryStatusLabel,
     } from "../js/utils.js";
+    import {
+      initBranchState,
+      registerBranchSwitcher,
+      getSelectedBranchId,
+      getBranchLabel,
+      onBranchChange,
+    } from "../js/branches.js";
     import { subscribeRealtime } from "../js/realtime.js";
     import { mountNotifications } from "../js/notifications_ui.js";
 
     renderSidebar("orders.html");
     mountThemeToggle();
-    const { user } = await requireAuth();
+    const { user, profile } = await requireAuth();
     const supabase = getClient();
     mountNotifications({ supabase });
+
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
+      allowAll: profile.role === "super_admin",
+    });
+    onBranchChange(() => {
+      loadOrders();
+      loadKitchen();
+      loadDispatch();
+      loadReports();
+    });
 
     const tbody = document.querySelector("#ordersTable tbody");
     const statusTabs = Array.from(document.querySelectorAll("#statusTabs .pill"));
@@ -257,6 +308,8 @@
 
     async function loadOrders() {
       tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const { data, error } = await fetchOrdersAdvanced({
         status: currentStatus === "all" ? null : currentStatus,
         search: document.getElementById("searchInput").value.trim(),
@@ -264,6 +317,7 @@
         dateFrom: document.getElementById("dateFrom").value || null,
         dateTo: document.getElementById("dateTo").value || null,
         minTotal: document.getElementById("minTotal").value || null,
+        branchId,
       });
       if (error) {
         tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`;
@@ -277,9 +331,13 @@
       tbody.innerHTML = currentOrders
         .map((o) => {
           const address = o.address_snapshot?.address || o.address_snapshot?.label || "";
+          const branchChip =
+            rawBranch === "all"
+              ? `<span class="branch-badge">${getBranchLabel(o.branch_id)}</span> `
+              : "";
           return `
           <tr class="clickable" data-id="${o.id}">
-            <td>#${o.id.slice(0, 8)}</td>
+            <td>${branchChip}#${o.id.slice(0, 8)}</td>
             <td>${statusLabel(o.status)}</td>
             <td>${fmtMoney(o.total)}</td>
             <td><span class="chip">${o.payment_method} • ${o.payment_status}</span></td>
@@ -570,8 +628,10 @@
     async function loadKitchen() {
       const grid = document.getElementById("kitchenGrid");
       grid.innerHTML = `<div class="skeleton" style="height:80px;"></div>`;
-      const prep = await fetchOrdersForStatus("preparing");
-      const ready = await fetchOrdersForStatus("ready");
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const prep = await fetchOrdersForStatus("preparing", branchId);
+      const ready = await fetchOrdersForStatus("ready", branchId);
       const cards = [];
       (prep.data || []).forEach((o) =>
         cards.push(`
@@ -600,7 +660,9 @@
     async function loadDispatch() {
       const grid = document.getElementById("dispatchGrid");
       grid.innerHTML = `<div class="skeleton" style="height:80px;"></div>`;
-      const ready = await fetchOrdersForStatus("ready");
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const ready = await fetchOrdersForStatus("ready", branchId);
       const orders = ready.data || [];
       const deliveriesRes = await fetchDeliveriesForOrders(orders.map((o) => o.id));
       if (deliveriesRes.error) {
@@ -657,9 +719,12 @@
     }
 
     async function exportCsvFile() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const { data, error } = await exportOrdersCsv({
         dateFrom: document.getElementById("dateFrom").value || null,
         dateTo: document.getElementById("dateTo").value || null,
+        branchId,
       });
       if (error) {
         showToast(error.message);

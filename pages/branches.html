@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Branches • Finger Licking Admin</title>
+    <link rel="stylesheet" href="../css/tokens.css" />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/components.css" />
+    <script src="../env.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+    <style>
+      .hero {
+        margin-bottom: var(--space-3);
+        border-radius: var(--radius-lg);
+        padding: 22px;
+        background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.08));
+        border: 1px solid var(--color-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: var(--space-3);
+      }
+      .stat-card {
+        padding: 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-border);
+        background: var(--color-panel);
+        box-shadow: var(--shadow-xs);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .stat-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-muted);
+      }
+      .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+      }
+      .pill-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      @media (max-width: 720px) {
+        .hero { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">Finger Licking</div>
+        <div class="nav"></div>
+      </aside>
+      <main>
+        <div class="topbar">
+          <div>
+            <div class="font-bold">Branches</div>
+            <div class="muted" style="font-size: var(--text-sm)">Multi-branch management</div>
+          </div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+            <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+            <button class="btn primary" id="addBranchBtn">Add branch</button>
+          </div>
+        </div>
+
+        <div class="page">
+          <div class="hero">
+            <div>
+              <div class="font-semibold" style="font-size:1.3rem;">Manage branches</div>
+              <div class="muted text-sm">
+                Create and control outlets. Branch admins and staff are scoped to their branch via RLS.
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn ghost" id="refreshBtn">Reload</button>
+            </div>
+          </div>
+
+          <div id="accessWarning" class="card" style="display:none;">
+            <div class="font-semibold">Super admin only</div>
+            <div class="muted text-sm">You can view your assigned branch in other pages, but only super admins can manage branches.</div>
+          </div>
+
+          <div class="stats" id="stats" style="display:none;">
+            <div class="stat-card">
+              <div class="stat-label">Active branches</div>
+              <div class="stat-value" id="statActive">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Closed right now</div>
+              <div class="stat-value" id="statClosed">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total branches</div>
+              <div class="stat-value" id="statTotal">0</div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;">
+            <table class="table" id="branchesTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Address</th>
+                  <th>Status</th>
+                  <th>Open</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="branchModal">
+      <div class="modal">
+        <header>
+          <div>
+            <div class="font-semibold" id="branchModalTitle">Add branch</div>
+            <div class="muted text-sm" id="branchModalSubtitle">Branch details</div>
+          </div>
+          <button class="btn ghost" id="closeBranchModal">✕</button>
+        </header>
+        <form id="branchForm">
+          <label class="label">Name</label>
+          <input class="input" id="branchName" required />
+          <div style="height:10px;"></div>
+          <label class="label">Address</label>
+          <textarea class="textarea" id="branchAddress" rows="2"></textarea>
+          <div style="height:10px;"></div>
+          <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label class="label">Lat</label>
+              <input class="input" id="branchLat" type="number" step="any" />
+            </div>
+            <div>
+              <label class="label">Lng</label>
+              <input class="input" id="branchLng" type="number" step="any" />
+            </div>
+          </div>
+          <div style="height:12px;"></div>
+          <label class="pill-toggle">
+            <input type="checkbox" id="branchIsActive" checked />
+            <span>Active branch</span>
+          </label>
+          <div style="height:10px;"></div>
+          <label class="pill-toggle">
+            <input type="checkbox" id="branchIsOpen" checked />
+            <span>Open now</span>
+          </label>
+          <div style="height:16px;"></div>
+          <button class="btn primary" style="width:100%" type="submit">Save branch</button>
+        </form>
+      </div>
+    </div>
+
+    <script type="module">
+      import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+      import { requireAuth, getClient } from "../js/auth.js";
+      import { fetchBranches, upsertBranch } from "../js/api.js";
+      import { fmtDateTime } from "../js/utils.js";
+      import { mountNotifications } from "../js/notifications_ui.js";
+
+      renderSidebar("branches.html");
+      mountThemeToggle();
+      const { profile } = await requireAuth();
+      const supabase = getClient();
+      mountNotifications({ supabase });
+
+      const isSuper = profile.role === "super_admin";
+      document.getElementById("accessWarning").style.display = isSuper ? "none" : "";
+      document.getElementById("stats").style.display = isSuper ? "" : "none";
+      document.getElementById("addBranchBtn").disabled = !isSuper;
+
+      const tbody = document.querySelector("#branchesTable tbody");
+      const modal = document.getElementById("branchModal");
+      const form = document.getElementById("branchForm");
+      const title = document.getElementById("branchModalTitle");
+      const subtitle = document.getElementById("branchModalSubtitle");
+      const nameEl = document.getElementById("branchName");
+      const addrEl = document.getElementById("branchAddress");
+      const latEl = document.getElementById("branchLat");
+      const lngEl = document.getElementById("branchLng");
+      const activeEl = document.getElementById("branchIsActive");
+      const openEl = document.getElementById("branchIsOpen");
+      const statActive = document.getElementById("statActive");
+      const statClosed = document.getElementById("statClosed");
+      const statTotal = document.getElementById("statTotal");
+
+      let editing = null;
+
+      document.getElementById("refreshBtn").addEventListener("click", load);
+      document.getElementById("addBranchBtn").addEventListener("click", () => openModal(null));
+      document.getElementById("closeBranchModal").addEventListener("click", () => toggleModal(false));
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) toggleModal(false);
+      });
+
+      function toggleModal(show) {
+        modal.classList[show ? "add" : "remove"]("show");
+      }
+
+      function openModal(branch) {
+        if (!isSuper) {
+          showToast("Super admin only");
+          return;
+        }
+        editing = branch || null;
+        title.textContent = editing ? `Edit ${editing.name}` : "Add branch";
+        subtitle.textContent = editing ? `Created ${fmtDateTime(editing.created_at || "")}` : "Branch details";
+        nameEl.value = editing?.name || "";
+        addrEl.value = editing?.address || "";
+        latEl.value = editing?.lat ?? "";
+        lngEl.value = editing?.lng ?? "";
+        activeEl.checked = editing?.is_active ?? true;
+        openEl.checked = editing?.is_open ?? true;
+        toggleModal(true);
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!isSuper) return;
+        const payload = {
+          id: editing?.id,
+          name: nameEl.value.trim(),
+          address: addrEl.value.trim() || null,
+          lat: latEl.value ? Number(latEl.value) : null,
+          lng: lngEl.value ? Number(lngEl.value) : null,
+          is_active: !!activeEl.checked,
+          is_open: !!openEl.checked,
+        };
+        const { error } = await upsertBranch(payload);
+        if (error) return showToast(error.message);
+        showToast("Branch saved");
+        toggleModal(false);
+        await load();
+      });
+
+      await load();
+
+      async function load() {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+        const { data, error } = await fetchBranches();
+        if (error) {
+          tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
+          return;
+        }
+        const branches = data || [];
+        if (isSuper) {
+          const active = branches.filter((b) => b.is_active).length;
+          const closed = branches.filter((b) => b.is_active && !b.is_open).length;
+          statActive.textContent = active;
+          statClosed.textContent = closed;
+          statTotal.textContent = branches.length;
+        }
+        if (!branches.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="muted">No branches yet</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = branches
+          .map((b) => {
+            const status = b.is_active ? '<span class="chip success">Active</span>' : '<span class="chip muted">Inactive</span>';
+            const open = b.is_open ? '<span class="chip success">Open</span>' : '<span class="chip danger">Closed</span>';
+            return `
+              <tr data-id="${b.id}">
+                <td>
+                  <div class="font-semibold">${escapeHtml(b.name || "Branch")}</div>
+                  <div class="muted text-xs mono">${b.id.slice(0, 8)}…</div>
+                </td>
+                <td class="muted">${escapeHtml((b.address || "").trim() || "—")}</td>
+                <td>${status}</td>
+                <td>${open}</td>
+                <td class="muted">${fmtDateTime(b.created_at || "")}</td>
+                <td><button class="btn ghost" data-edit="${b.id}">Edit</button></td>
+              </tr>`;
+          })
+          .join("");
+
+        const map = new Map(branches.map((b) => [b.id, b]));
+        tbody.querySelectorAll("[data-edit]").forEach((btn) => {
+          btn.addEventListener("click", () => openModal(map.get(btn.dataset.edit)));
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+    </script>
+  </body>
+</html>
+

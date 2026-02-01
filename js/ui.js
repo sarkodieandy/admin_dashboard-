@@ -21,6 +21,7 @@ export function renderSidebar(activeId) {
     ["menu.html", "Menu", "🍔"],
     ["customers.html", "Customers", "👥"],
     ["riders.html", "Riders", "🛵"],
+    ["branches.html", "Branches", "🏠"],
     ["delivery-settings.html", "Delivery", "🚚"],
     ["promotions.html", "Promotions", "🏷️"],
     ["reviews-support.html", "Reviews", "⭐"],
