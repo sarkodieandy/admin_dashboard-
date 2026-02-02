@@ -10,15 +10,243 @@
   <link rel="stylesheet" href="../css/pages.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr;
+      background: radial-gradient(1200px 800px at 25% 0%, rgba(59, 130, 246, 0.16), transparent 55%),
+        radial-gradient(900px 650px at 80% 30%, rgba(16, 185, 129, 0.14), transparent 60%),
+        var(--color-bg);
+    }
+
+    .login-grid {
+      width: min(1040px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .login-hero {
+      position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(15, 23, 42, 0.35);
+      min-height: 220px;
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.25);
+    }
+
+    .login-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: url("https://images.unsplash.com/photo-1555992336-cbf7c0e0a0e2?auto=format&fit=crop&w=1800&q=80");
+      background-size: cover;
+      background-position: center;
+      transform: scale(1.02);
+      filter: saturate(1.05) contrast(1.02);
+    }
+
+    .login-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background: linear-gradient(120deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.35) 60%, rgba(2, 6, 23, 0.65));
+    }
+
+    .login-hero-art {
+      position: absolute;
+      inset: 0;
+      background: url("../assets/restaurant-art.svg") no-repeat 88% 82% / min(560px, 78%);
+      opacity: 0.85;
+      mix-blend-mode: screen;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .login-hero-inner {
+      position: relative;
+      z-index: 3;
+      padding: 22px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .login-hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(8px);
+      width: fit-content;
+      font-size: 12px;
+      letter-spacing: 0.2px;
+    }
+
+    .login-hero-title {
+      margin: 12px 0 6px 0;
+      font-size: 26px;
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .login-hero-sub {
+      margin: 0;
+      max-width: 52ch;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .login-card {
+      width: 100%;
+      padding: 22px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.18);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.66));
+      backdrop-filter: blur(10px);
+    }
+
+    html[data-theme="dark"] .login-card {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.54));
+    }
+
+    .login-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .login-kicker {
+      margin-top: 2px;
+      font-size: 12px;
+      letter-spacing: 0.2px;
+      color: var(--color-muted);
+    }
+
+    .login-help {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(148, 163, 184, 0.12);
+      color: var(--color-text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .login-help:hover {
+      background: rgba(148, 163, 184, 0.18);
+    }
+
+    .hint {
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(148, 163, 184, 0.10);
+      padding: 12px;
+    }
+
+    .login-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+
+    .login-brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    html[data-theme="dark"] .login-brand-mark {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .login-brand-mark img {
+      width: 40px;
+      height: 40px;
+      transform: translateY(1px);
+      opacity: 0.95;
+    }
+
+    @media (min-width: 920px) {
+      .login-grid {
+        grid-template-columns: 1.1fr 0.9fr;
+        padding: 24px;
+      }
+      .login-hero {
+        min-height: 520px;
+      }
+      .login-card {
+        max-width: 420px;
+        margin-left: auto;
+        align-self: center;
+      }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .login-hero::before {
+        animation: heroFloat 12s ease-in-out infinite;
+      }
+      @keyframes heroFloat {
+        0%, 100% { transform: scale(1.03) translateY(0px); }
+        50% { transform: scale(1.05) translateY(-6px); }
+      }
+    }
+  </style>
 </head>
 <body>
-  <div class="layout" style="grid-template-columns: 1fr; min-height:100vh;">
-    <main style="display:flex; align-items:center; justify-content:center; padding:20px;">
-      <div class="card" style="max-width:380px; width:100%; padding:24px;">
-        <div class="flex-between">
+  <div class="login-shell">
+    <main class="login-grid">
+      <section class="login-hero" aria-hidden="true">
+        <div class="login-hero-art" aria-hidden="true"></div>
+        <div class="login-hero-inner">
           <div>
-            <div class="font-extrabold" style="font-size:20px; letter-spacing:0.2px;">Finger Licking</div>
-            <div class="muted text-sm">Admin sign in</div>
+            <div class="login-hero-badge">🍗 Finger Licking Restaurant</div>
+            <h1 class="login-hero-title">Admin Dashboard</h1>
+            <p class="login-hero-sub">
+              Manage branches, orders, menus, riders, chats, reviews, and delivery settings in real time.
+            </p>
+          </div>
+          <p class="login-hero-sub" style="margin-top:auto;">
+            Tip: Super Admin can switch branches and manage staff roles.
+          </p>
+        </div>
+      </section>
+
+      <section class="login-card card">
+        <div class="login-card-head">
+          <div>
+            <div class="login-brand">
+              <span class="login-brand-mark" aria-hidden="true">
+                <img src="../assets/restaurant-art.svg" alt="" />
+              </span>
+              <div class="font-extrabold" style="font-size:20px; letter-spacing:0.2px;">Sign in</div>
+            </div>
+            <div class="login-kicker">Finger Licking Admin</div>
           </div>
           <button class="btn ghost icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme">🌓</button>
         </div>
@@ -26,11 +254,22 @@
         <div id="fileWarn" class="card" style="margin-top:14px; padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.08); display:none;">
           <div class="font-semibold">You opened this from your files.</div>
           <div class="muted text-sm">This dashboard must be served over HTTP (modules won’t load on <code>file://</code>).</div>
-          <div class="muted text-sm" style="margin-top:6px;">Run: <code>python3 -m http.server 5173</code> then open <code>http://localhost:5173/admin-dashboard/</code></div>
+          <div class="muted text-sm" style="margin-top:6px;">Run: <code>cd admin-dashboard && python3 -m http.server 5173</code> then open <code>http://localhost:5173/pages/login.html</code></div>
         </div>
 
-        <p class="muted" style="margin:14px 0 16px 0;">Staff/Admin accounts only.</p>
+        <div class="hint" style="margin:14px 0 14px 0;">
+          <div class="muted text-sm">Access is role-based and verified after sign-in.</div>
+          <div class="muted text-xs" style="margin-top:6px;">Choose your login type to route you correctly — you can’t “switch” roles here.</div>
+        </div>
         <form id="loginForm" class="space-y">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label class="label" for="loginAs">Login type</label>
+            <select id="loginAs" name="loginAs" class="input" style="height:44px;">
+              <option value="staff">Staff</option>
+              <option value="branch_admin">Branch Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label class="label" for="email">Email</label>
             <input id="email" name="email" type="email" required class="input" autocomplete="email" />
@@ -45,9 +284,9 @@
         </form>
         <div id="loginError" class="muted text-sm" style="margin-top:10px; color: var(--color-danger); min-height: 18px;"></div>
         <div class="muted text-xs" style="margin-top:12px;">
-          If you can’t sign in, ask an admin to allowlist your email in <strong>Staff & Roles</strong>.
+          If you can’t sign in, ask the owner to add your email in <strong>Staff & Roles</strong>.
         </div>
-      </div>
+      </section>
     </main>
   </div>
 
@@ -59,6 +298,7 @@
     const errorEl = document.getElementById("loginError");
     const submitBtn = document.getElementById("submitBtn");
     const submitLabel = document.getElementById("submitLabel");
+    const loginAsEl = document.getElementById("loginAs");
 
     mountThemeToggle();
     document.getElementById("themeBtn").addEventListener("click", () => {
@@ -73,6 +313,7 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
+      const loginAs = (loginAsEl?.value || "staff").trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
       if (!email || !password) {
@@ -98,9 +339,39 @@
       const userId = sessionData?.session?.user?.id;
       if (userId) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-        if (profile?.role && !["admin", "staff"].includes(profile.role)) {
+        const role = profile?.role;
+        const isStaffRole = role && ["staff", "admin", "branch_admin", "super_admin"].includes(role);
+        if (!isStaffRole) {
           await supabase.auth.signOut();
-          errorEl.textContent = "This account is not staff/admin. Ask admin to allowlist your email.";
+          errorEl.textContent = "Access denied. This account is not staff/admin.";
+          submitBtn.classList.remove("loading");
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Sign in";
+          return;
+        }
+
+        // Validate the selected login type against the actual profile role.
+        // This does NOT grant access; it only prevents confusing mismatches.
+        const normalized = role === "admin" ? "branch_admin" : role;
+        if (loginAs === "super_admin" && normalized !== "super_admin") {
+          await supabase.auth.signOut();
+          errorEl.textContent = "This account is not a Super Admin account.";
+          submitBtn.classList.remove("loading");
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Sign in";
+          return;
+        }
+        if (loginAs === "branch_admin" && !["branch_admin", "super_admin"].includes(normalized)) {
+          await supabase.auth.signOut();
+          errorEl.textContent = "This account is not a Branch Admin account.";
+          submitBtn.classList.remove("loading");
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Sign in";
+          return;
+        }
+        if (loginAs === "staff" && !["staff", "branch_admin", "super_admin"].includes(normalized)) {
+          await supabase.auth.signOut();
+          errorEl.textContent = "This account is not a Staff account.";
           submitBtn.classList.remove("loading");
           submitBtn.disabled = false;
           submitLabel.textContent = "Sign in";
