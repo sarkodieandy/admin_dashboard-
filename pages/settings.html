@@ -9,6 +9,82 @@
   <link rel="stylesheet" href="../css/components.css" />
   <script src="../env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .settings-page { padding-bottom: 104px; }
+
+    .settings-savebar {
+      position: fixed;
+      left: 250px;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      padding: 12px 16px 16px 16px;
+      pointer-events: none;
+    }
+
+    .settings-savebar-inner {
+      pointer-events: auto;
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 12px 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(255, 255, 255, 0.80);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 50px rgba(2, 6, 23, 0.18);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      justify-content: space-between;
+    }
+
+    html[data-theme="dark"] .settings-savebar-inner {
+      background: rgba(15, 23, 42, 0.78);
+    }
+
+    .settings-savebar-title {
+      font-weight: 900;
+      letter-spacing: -0.15px;
+    }
+
+    .settings-savebar-sub {
+      margin-top: 2px;
+      color: var(--color-muted);
+      font-size: 12px;
+    }
+
+    .settings-savebar-btn {
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 14px;
+      font-weight: 900;
+      letter-spacing: -0.1px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-savebar-btn.primary {
+      background: linear-gradient(90deg, var(--color-primary), var(--color-primary-strong));
+      border-color: var(--color-primary-strong);
+    }
+
+    .settings-savebar-btn[disabled] {
+      opacity: 0.6;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    @media (max-width: 1024px) {
+      .settings-savebar { left: 72px; }
+    }
+
+    @media (max-width: 640px) {
+      .settings-savebar { left: 0; padding: 10px 12px 14px 12px; }
+      .settings-savebar-inner { width: 100%; }
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -27,7 +103,7 @@
           <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
       </div>
-      <div class="page">
+      <div class="page settings-page">
         <div class="card" style="margin-bottom:14px;">
           <div class="flex-between" style="gap:10px;">
             <div>
@@ -49,7 +125,7 @@
               <label class="chip-btn" id="toggleBusy">Busy mode</label>
             </div>
             <textarea id="busyNote" class="input" rows="2" placeholder="High demand, expect delays" style="margin-top:8px;"></textarea>
-            <button class="btn primary" id="saveBusiness" style="margin-top:10px;">Save business</button>
+            <button class="btn primary" id="saveBusiness" style="margin-top:10px; width:100%;">Save</button>
           </div>
 
           <div class="card">
@@ -59,7 +135,7 @@
             <label class="label" style="margin-top:6px;">Close</label>
             <input id="closeTime" class="input" type="time" />
             <small class="muted">Split hours & holidays can be added later.</small>
-            <button class="btn primary" id="saveHours" style="margin-top:10px;">Save hours</button>
+            <button class="btn primary" id="saveHours" style="margin-top:10px; width:100%;">Save</button>
           </div>
 
           <div class="card">
@@ -73,7 +149,7 @@
               <label class="chip-btn" id="togglePickup">Pickup enabled</label>
               <label class="chip-btn" id="toggleSchedule">Scheduled orders</label>
             </div>
-            <button class="btn primary" id="saveOrders" style="margin-top:10px;">Save order rules</button>
+            <button class="btn primary" id="saveOrders" style="margin-top:10px; width:100%;">Save</button>
           </div>
 
           <div class="card">
@@ -89,7 +165,7 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
               <label class="chip-btn" id="toggleCOD">Cash on delivery (local only)</label>
             </div>
-            <button class="btn primary" id="saveDelivery" style="margin-top:10px;">Save delivery settings</button>
+            <button class="btn primary" id="saveDelivery" style="margin-top:10px; width:100%;">Save</button>
           </div>
 
           <div class="card">
@@ -100,13 +176,26 @@
             <input id="chatClose" class="input" type="number" min="0" />
             <label class="label" style="margin-top:6px;">Profanity filter</label>
             <label class="chip-btn" id="toggleProfanity">Filter on</label>
-            <button class="btn primary" id="saveNotify" style="margin-top:10px;">Save notifications</button>
+            <button class="btn primary" id="saveNotify" style="margin-top:10px; width:100%;">Save</button>
           </div>
         </div>
 
         <div class="card" style="margin-top:16px;">
           <div class="font-bold" style="margin-bottom: var(--space-2);">Permissions</div>
           <div class="muted text-sm">Settings are intended for admin/owner. Staff access should be restricted.</div>
+        </div>
+      </div>
+
+      <div class="settings-savebar" aria-live="polite" aria-atomic="true">
+        <div class="settings-savebar-inner">
+          <div>
+            <div class="settings-savebar-title" id="saveAllTitle">All changes saved</div>
+            <div class="settings-savebar-sub" id="saveAllSub">You’re up to date.</div>
+          </div>
+          <button class="btn primary settings-savebar-btn" id="saveAllBtn" type="button" disabled>
+            <span aria-hidden="true">💾</span>
+            <span id="saveAllLabel">Save changes</span>
+          </button>
         </div>
       </div>
     </main>
@@ -130,6 +219,24 @@
     const stateKey = "adminSettingsLocal";
     const state = JSON.parse(localStorage.getItem(stateKey) || "{}");
     const syncStatus = document.getElementById("syncStatus");
+    const saveAllBtn = document.getElementById("saveAllBtn");
+    const saveAllTitle = document.getElementById("saveAllTitle");
+    const saveAllSub = document.getElementById("saveAllSub");
+    const saveAllLabel = document.getElementById("saveAllLabel");
+
+    let dirty = false;
+    let savingAll = false;
+    function setDirty(next) {
+      dirty = !!next;
+      saveAllBtn.disabled = !dirty || savingAll;
+      if (dirty) {
+        saveAllTitle.textContent = "Unsaved changes";
+        saveAllSub.textContent = "Tap Save changes to apply updates.";
+      } else {
+        saveAllTitle.textContent = "All changes saved";
+        saveAllSub.textContent = "You’re up to date.";
+      }
+    }
 
     const bindToggle = (id, key, labelOn = "On", labelOff = "Off") => {
       const el = document.getElementById(id);
@@ -140,6 +247,7 @@
       };
       el.addEventListener("click", () => {
         state[key] = !state[key];
+        setDirty(true);
         update();
       });
       update();
@@ -181,31 +289,68 @@
     setVal("autoCancel", "autoCancel");
     setVal("chatClose", "chatClose");
 
-    document.getElementById("saveBusiness").addEventListener("click", () => {
+    function saveLocalRestaurantFields() {
       state.restName = document.getElementById("restName").value;
       state.restPhone = document.getElementById("restPhone").value;
       state.busyNote = document.getElementById("busyNote").value;
       persist();
-      saveCloud();
-    });
+    }
 
-    document.getElementById("saveHours").addEventListener("click", () => {
+    function saveLocalHours() {
       state.openTime = document.getElementById("openTime").value;
       state.closeTime = document.getElementById("closeTime").value;
       persist();
-      saveCloud();
-    });
+    }
 
-    document.getElementById("saveOrders").addEventListener("click", () => {
+    function saveLocalOrders() {
       state.autoCancel = document.getElementById("autoCancel").value;
       persist();
-      saveCloud();
-    });
+    }
 
-    document.getElementById("saveNotify").addEventListener("click", () => {
+    function saveLocalNotify() {
       state.chatClose = document.getElementById("chatClose").value;
       persist();
-      saveCloud();
+    }
+
+    async function saveRestaurantCloud() {
+      await saveCloud();
+    }
+
+    async function saveDeliveryCloud() {
+      const branchId = getSelectedBranchId();
+      const payload = {
+        base_fee: Number(document.getElementById("baseFee").value || 0),
+        free_radius_km: Number(document.getElementById("freeRadius").value || 0),
+        per_km_fee_after_free_radius: Number(document.getElementById("perKm").value || 0),
+        max_delivery_distance_km: Number(document.getElementById("maxDistance").value || 0),
+        minimum_order_amount: Number(document.getElementById("minOrder").value || 0),
+      };
+      const { error } = await saveDeliverySettingsForBranch(payload, branchId);
+      if (error) throw error;
+    }
+
+    document.getElementById("saveBusiness").addEventListener("click", async () => {
+      saveLocalRestaurantFields();
+      await saveRestaurantCloud();
+      setDirty(false);
+    });
+
+    document.getElementById("saveHours").addEventListener("click", async () => {
+      saveLocalHours();
+      await saveRestaurantCloud();
+      setDirty(false);
+    });
+
+    document.getElementById("saveOrders").addEventListener("click", async () => {
+      saveLocalOrders();
+      await saveRestaurantCloud();
+      setDirty(false);
+    });
+
+    document.getElementById("saveNotify").addEventListener("click", async () => {
+      saveLocalNotify();
+      await saveRestaurantCloud();
+      setDirty(false);
     });
 
     // Delivery settings persisted to Supabase delivery_settings singleton table
@@ -220,20 +365,64 @@
     });
 
     document.getElementById("saveDelivery").addEventListener("click", async () => {
-      const branchId = getSelectedBranchId();
-      const payload = {
-        base_fee: Number(document.getElementById("baseFee").value || 0),
-        free_radius_km: Number(document.getElementById("freeRadius").value || 0),
-        per_km_fee_after_free_radius: Number(document.getElementById("perKm").value || 0),
-        max_delivery_distance_km: Number(document.getElementById("maxDistance").value || 0),
-        minimum_order_amount: Number(document.getElementById("minOrder").value || 0),
-      };
-      const { error } = await saveDeliverySettingsForBranch(payload, branchId);
-      if (error) return showToast(error.message);
-      showToast("Delivery settings saved");
+      try {
+        await saveDeliveryCloud();
+        showToast("Delivery settings saved");
+        setDirty(false);
+      } catch (e) {
+        showToast(e?.message || e?.toString?.() || "Save failed");
+      }
+    });
+
+    // Make it obvious when changes are pending.
+    const watchIds = [
+      "restName",
+      "restPhone",
+      "busyNote",
+      "openTime",
+      "closeTime",
+      "minOrder",
+      "autoCancel",
+      "baseFee",
+      "freeRadius",
+      "perKm",
+      "maxDistance",
+      "chatClose",
+    ];
+    watchIds.forEach((id) => {
+      const el = document.getElementById(id);
+      el?.addEventListener("input", () => setDirty(true));
+      el?.addEventListener("change", () => setDirty(true));
+    });
+
+    saveAllBtn.addEventListener("click", async () => {
+      if (!dirty || savingAll) return;
+      savingAll = true;
+      saveAllBtn.disabled = true;
+      const prev = saveAllLabel.textContent;
+      saveAllLabel.textContent = "Saving…";
+      syncStatus.textContent = "Saving…";
+      try {
+        saveLocalRestaurantFields();
+        saveLocalHours();
+        saveLocalOrders();
+        saveLocalNotify();
+        await saveRestaurantCloud();
+        await saveDeliveryCloud();
+        showToast("Saved");
+        setDirty(false);
+      } catch (e) {
+        showToast(e?.message || e?.toString?.() || "Save failed");
+        setDirty(true);
+      } finally {
+        savingAll = false;
+        saveAllLabel.textContent = prev;
+        saveAllBtn.disabled = !dirty;
+      }
     });
 
     await loadCloud();
+    setDirty(false);
 
     async function loadCloud() {
       const branchId = getSelectedBranchId();
