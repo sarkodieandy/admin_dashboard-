@@ -163,10 +163,25 @@ export async function fetchChatMessages(chatId) {
 }
 
 export async function sendChatMessage({ chatId, message, userId }) {
+  const res = await supabase.from("chat_messages").insert({
+    chat_id: chatId,
+    message,
+    sender_id: userId,
+  });
+  if (!res.error) return res;
+
+  const msg = String(res.error.message || "").toLowerCase();
+  const isRls = res.error.code === "42501" || msg.includes("row-level security");
+  if (!isRls) return res;
+
+  // Retry with branch_id for older deployments where a trigger isn't installed yet.
+  const chat = await supabase.from("chats").select("branch_id").eq("id", chatId).maybeSingle();
+  if (chat.error || !chat.data) return res;
   return supabase.from("chat_messages").insert({
     chat_id: chatId,
     message,
     sender_id: userId,
+    branch_id: chat.data.branch_id,
   });
 }
 
