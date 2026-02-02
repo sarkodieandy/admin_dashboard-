@@ -27,31 +27,31 @@
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
-      </div>
-      <div class="page">
-        <div class="grid" style="display:grid; grid-template-columns: 280px 1fr 320px; gap: var(--space-4); align-items:start;">
-          <div class="card" style="min-height: 60vh;">
-            <div class="flex-between" style="margin-bottom: var(--space-3);">
-              <div class="font-bold">Conversations</div>
-              <button id="reload" class="btn ghost">Reload</button>
-            </div>
-            <div id="convList" class="space-y-2"></div>
-          </div>
-          <div class="card" style="min-height: 60vh;">
-            <div class="font-bold" style="margin-bottom: var(--space-2);">Thread</div>
-            <div id="thread" style="min-height:300px; max-height:420px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
-            <form id="chatForm" style="margin-top: var(--space-3); display:flex; gap:8px;">
-              <input id="chatInput" style="flex:1; height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;" placeholder="Type message..." />
-              <button class="btn primary" type="submit">Send</button>
-            </form>
-          </div>
-          <div class="card">
-            <div class="font-bold">Order context</div>
-            <div id="orderCtx" class="muted text-sm" style="margin-top: var(--space-2);">Select a conversation</div>
-          </div>
-        </div>
-      </div>
-    </main>
+	      </div>
+	      <div class="page">
+	        <div class="chats-grid">
+	          <div class="card chats-grid__conversations">
+	            <div class="flex-between" style="margin-bottom: var(--space-3);">
+	              <div class="font-bold">Conversations</div>
+	              <button id="reload" class="btn ghost">Reload</button>
+	            </div>
+	            <div id="convList" class="space-y-2"></div>
+	          </div>
+	          <div class="card chats-grid__thread">
+	            <div class="font-bold" style="margin-bottom: var(--space-2);">Thread</div>
+	            <div id="thread" style="min-height:300px; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
+	            <form id="chatForm" style="margin-top: var(--space-3); display:flex; gap:8px;">
+	              <input id="chatInput" style="flex:1; height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;" placeholder="Type message..." />
+	              <button class="btn primary" type="submit">Send</button>
+	            </form>
+	          </div>
+	          <div class="card chats-grid__context">
+	            <div class="font-bold">Order context</div>
+	            <div id="orderCtx" class="muted text-sm" style="margin-top: var(--space-2);">Select a conversation</div>
+	          </div>
+	        </div>
+	      </div>
+	    </main>
   </div>
   <div id="toast" class="toast"></div>
   <script type="module">

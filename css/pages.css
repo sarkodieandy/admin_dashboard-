@@ -11,6 +11,20 @@
 
 .flex-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
+.chats-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+.chats-grid__conversations,
+.chats-grid__thread {
+  min-height: 60vh;
+}
+.chats-grid__thread #thread {
+  max-height: 420px;
+}
+
 .drawer {
   position: fixed; right: -420px; top: 0; width: 400px; height: 100vh;
   background: var(--color-panel); border-left: 1px solid var(--color-border);
@@ -24,6 +38,17 @@
   }
   .layout-shell > * {
     width: 100% !important;
+  }
+
+  .chats-grid {
+    grid-template-columns: 1fr;
+  }
+  .chats-grid__conversations,
+  .chats-grid__thread {
+    min-height: auto;
+  }
+  .chats-grid__thread #thread {
+    max-height: min(52vh, 520px);
   }
 }
 
