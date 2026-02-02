@@ -3,6 +3,43 @@ import { showToast } from "./ui.js";
 
 const supabase = createClient();
 
+function mountLogoutButton({ profile }) {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return;
+  if (document.getElementById("logoutBtn")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "logoutBtn";
+  btn.className = "btn ghost";
+  btn.type = "button";
+  btn.title = "Sign out";
+  btn.setAttribute("aria-label", "Sign out");
+  btn.textContent = "⎋ Logout";
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "Signing out…";
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    window.location.href = "login.html";
+  });
+
+  // Optional context badge (role)
+  if (!document.getElementById("sessionRoleBadge") && profile?.role) {
+    const role = String(profile.role).replaceAll("_", " ");
+    const badge = document.createElement("span");
+    badge.id = "sessionRoleBadge";
+    badge.className = "badge";
+    badge.style.marginLeft = "6px";
+    badge.style.background = "rgba(59,130,246,0.08)";
+    badge.textContent = role;
+    topbar.appendChild(badge);
+  }
+
+  topbar.appendChild(btn);
+}
+
 export async function requireAuth() {
   const { data } = await supabase.auth.getSession();
   const user = data?.session?.user;
@@ -35,6 +72,7 @@ export async function requireAuth() {
     window.location.href = "login.html";
     return null;
   }
+  mountLogoutButton({ profile });
   return { user, profile };
 }
 

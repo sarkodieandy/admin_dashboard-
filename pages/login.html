@@ -119,10 +119,32 @@
       box-shadow: 0 24px 60px rgba(2, 6, 23, 0.18);
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.66));
       backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
     }
 
     html[data-theme="dark"] .login-card {
       background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.54));
+    }
+
+    .login-card::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 19px;
+      background: linear-gradient(
+        135deg,
+        rgba(59, 130, 246, 0.45),
+        rgba(16, 185, 129, 0.35),
+        rgba(251, 146, 60, 0.32)
+      );
+      opacity: 0.22;
+      pointer-events: none;
+    }
+
+    .login-card > * {
+      position: relative;
+      z-index: 1;
     }
 
     .login-card-head {
@@ -190,6 +212,16 @@
       height: 40px;
       transform: translateY(1px);
       opacity: 0.95;
+    }
+
+    .login-card:focus-within {
+      border-color: rgba(59, 130, 246, 0.45);
+      box-shadow: 0 26px 70px rgba(2, 6, 23, 0.18), 0 0 0 6px rgba(59, 130, 246, 0.10);
+    }
+
+    html[data-theme="dark"] .login-card:focus-within {
+      border-color: rgba(96, 165, 250, 0.50);
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.35), 0 0 0 6px rgba(96, 165, 250, 0.12);
     }
 
     @media (min-width: 920px) {
