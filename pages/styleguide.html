@@ -62,20 +62,22 @@
           <div style="margin-top:4px; font-size: var(--text-2xl); font-weight: 700;">Heading 2</div>
           <div style="margin-top:4px; font-size: var(--text-xl); font-weight: 600;">Heading 3</div>
           <div style="margin-top:4px; font-size: var(--text-md);">Body text with muted <span class="muted">secondary</span>.</div>
-        </div>
-        <div class="card" style="margin-top:16px;">
-          <div class="font-bold">Table</div>
-          <table class="table" style="margin-top:8px;">
-            <thead><tr><th>Column</th><th>Column</th><th>Column</th></tr></thead>
-            <tbody>
-              <tr><td>Row 1</td><td>Data</td><td>More</td></tr>
-              <tr><td>Row 2</td><td>Data</td><td>More</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </main>
-  </div>
+	        </div>
+	        <div class="card" style="margin-top:16px;">
+	          <div class="font-bold">Table</div>
+	          <div class="table-wrap" style="margin-top:8px;">
+	            <table class="table">
+	              <thead><tr><th>Column</th><th>Column</th><th>Column</th></tr></thead>
+	              <tbody>
+	                <tr><td>Row 1</td><td>Data</td><td>More</td></tr>
+	                <tr><td>Row 2</td><td>Data</td><td>More</td></tr>
+	              </tbody>
+	            </table>
+	          </div>
+	        </div>
+	      </div>
+	    </main>
+	  </div>
   <script type="module">
     import { renderSidebar, mountThemeToggle } from "../js/ui.js";
     import { requireAuth } from "../js/auth.js";

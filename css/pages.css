@@ -18,6 +18,15 @@
 }
 .drawer.open { right: 0; }
 
+@media (max-width: 980px) {
+  .layout-shell {
+    flex-direction: column;
+  }
+  .layout-shell > * {
+    width: 100% !important;
+  }
+}
+
 /* Auth */
 .auth-shell {
   min-height: 100vh;

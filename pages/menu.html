@@ -76,24 +76,24 @@
         </div>
 
         <div class="card" style="padding:16px; box-shadow:var(--color-shadow);">
-          <div class="flex-between" style="gap:8px; flex-wrap:wrap;">
-            <input id="searchInput" class="input" placeholder="Search item name" style="max-width:220px;">
-            <select id="filterCategory" class="input" style="max-width:180px;">
-              <option value="">All categories</option>
-            </select>
-            <select id="filterAvailability" class="input" style="max-width:160px;">
-              <option value="">All availability</option>
-              <option value="available">Available</option>
-              <option value="soldout">Sold out</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-          <div id="itemsTable" style="margin-top:16px; overflow:auto;">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Item</th><th>Category</th><th>Price</th><th>Available</th><th>Active</th><th></th>
-                </tr>
+	          <div class="flex-between" style="gap:8px; flex-wrap:wrap;">
+	            <input id="searchInput" class="input" placeholder="Search item name" style="max-width:220px;">
+	            <select id="filterCategory" class="input" style="max-width:180px;">
+	              <option value="">All categories</option>
+	            </select>
+	            <select id="filterAvailability" class="input" style="max-width:160px;">
+	              <option value="">All availability</option>
+	              <option value="available">Available</option>
+	              <option value="soldout">Sold out</option>
+	              <option value="inactive">Inactive</option>
+	            </select>
+	          </div>
+	          <div id="itemsTable" class="table-wrap" style="margin-top:16px;">
+	            <table class="table">
+	              <thead>
+	                <tr>
+	                  <th>Item</th><th>Category</th><th>Price</th><th>Available</th><th>Active</th><th></th>
+	                </tr>
               </thead>
               <tbody></tbody>
             </table>
