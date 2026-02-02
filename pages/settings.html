@@ -66,14 +66,20 @@
     }
 
     .settings-savebar-btn.primary {
-      background: linear-gradient(90deg, var(--color-primary), var(--color-primary-strong));
-      border-color: var(--color-primary-strong);
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      border-color: rgba(251, 146, 60, 0.85);
+      color: #0b1220;
+      box-shadow: 0 18px 50px rgba(249, 115, 22, 0.22);
     }
 
+    .settings-savebar-btn.primary:hover { filter: brightness(1.02); }
+
     .settings-savebar-btn[disabled] {
-      opacity: 0.6;
+      opacity: 0.78;
+      filter: saturate(0.95);
       transform: none !important;
       box-shadow: none !important;
+      cursor: default;
     }
 
     @media (max-width: 1024px) {
@@ -193,15 +199,15 @@
             <div class="settings-savebar-sub" id="saveAllSub">You’re up to date.</div>
           </div>
           <button class="btn primary settings-savebar-btn" id="saveAllBtn" type="button" disabled>
-            <span aria-hidden="true">💾</span>
-            <span id="saveAllLabel">Save changes</span>
+            <span aria-hidden="true" id="saveAllIcon">✓</span>
+            <span id="saveAllLabel">Saved</span>
           </button>
         </div>
       </div>
     </main>
   </div>
   <script type="module">
-    import { renderSidebar, showToast } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth } from "../js/auth.js";
     import { loadDeliverySettingsForBranch, saveDeliverySettingsForBranch, loadRestaurantSettingsForBranch, saveRestaurantSettingsForBranch } from "../js/api.js";
     import { createClient } from "../js/supabaseClient.js";
@@ -210,6 +216,7 @@
     import { initBranchState, registerBranchSwitcher, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("settings.html");
+    mountThemeToggle();
     const supabase = createClient();
     const { profile } = await requireAuth();
     mountNotifications({ supabase });
@@ -223,6 +230,7 @@
     const saveAllTitle = document.getElementById("saveAllTitle");
     const saveAllSub = document.getElementById("saveAllSub");
     const saveAllLabel = document.getElementById("saveAllLabel");
+    const saveAllIcon = document.getElementById("saveAllIcon");
 
     let dirty = false;
     let savingAll = false;
@@ -232,9 +240,13 @@
       if (dirty) {
         saveAllTitle.textContent = "Unsaved changes";
         saveAllSub.textContent = "Tap Save changes to apply updates.";
+        saveAllLabel.textContent = "Save changes";
+        saveAllIcon.textContent = "💾";
       } else {
         saveAllTitle.textContent = "All changes saved";
         saveAllSub.textContent = "You’re up to date.";
+        saveAllLabel.textContent = "Saved";
+        saveAllIcon.textContent = "✓";
       }
     }
 
@@ -399,8 +411,10 @@
       if (!dirty || savingAll) return;
       savingAll = true;
       saveAllBtn.disabled = true;
-      const prev = saveAllLabel.textContent;
+      const prevLabel = saveAllLabel.textContent;
+      const prevIcon = saveAllIcon.textContent;
       saveAllLabel.textContent = "Saving…";
+      saveAllIcon.textContent = "⏳";
       syncStatus.textContent = "Saving…";
       try {
         saveLocalRestaurantFields();
@@ -416,7 +430,8 @@
         setDirty(true);
       } finally {
         savingAll = false;
-        saveAllLabel.textContent = prev;
+        saveAllLabel.textContent = prevLabel;
+        saveAllIcon.textContent = prevIcon;
         saveAllBtn.disabled = !dirty;
       }
     });
