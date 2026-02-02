@@ -26,6 +26,7 @@ export function renderSidebar(activeId) {
     ["promotions.html", "Promotions", "🏷️"],
     ["reviews-support.html", "Reviews", "⭐"],
     ["staff-roles.html", "Staff", "🧑‍🍳"],
+    ["audit-logs.html", "Audit", "🧾"],
     ["analytics.html", "Analytics", "📈"],
     ["settings.html", "Settings", "⚙️"],
   ];
@@ -49,10 +50,8 @@ export function mountThemeToggle() {
   const btn = document.createElement("button");
   btn.id = "themeToggle";
   btn.className = "btn ghost";
-  btn.style.position = "fixed";
-  btn.style.bottom = "16px";
-  btn.style.right = "16px";
-  btn.style.zIndex = "80";
+  // Mount inside the topbar to avoid a floating overlay ("FAB") on pages.
+  btn.style.padding = "8px 10px";
   const apply = (mode) => {
     document.documentElement.setAttribute("data-theme", mode);
     localStorage.setItem("theme", mode);
@@ -64,5 +63,8 @@ export function mountThemeToggle() {
   });
   const saved = localStorage.getItem("theme") || "light";
   apply(saved);
-  document.body.appendChild(btn);
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    topbar.appendChild(btn);
+  }
 }
