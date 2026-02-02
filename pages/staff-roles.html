@@ -20,73 +20,312 @@
       <div class="topbar">
         <div>
           <div class="font-bold">Staff & Roles</div>
-          <div class="muted" style="font-size: var(--text-sm)">Allowlist staff emails</div>
+          <div class="muted" style="font-size: var(--text-sm)">Super admin controls branch admins + staff</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
+          <button class="btn ghost" id="reload">Reload</button>
         </div>
       </div>
+
       <div class="page">
-        <div class="card">
-          <div style="display:grid; grid-template-columns: 1fr 140px auto; gap:10px; align-items:end;">
-            <label style="display:flex; flex-direction:column; gap:6px;">
-              <span class="muted text-sm">Email</span>
-              <input id="staffEmail" style="height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;" />
-            </label>
-            <label style="display:flex; flex-direction:column; gap:6px;">
-              <span class="muted text-sm">Role</span>
-              <select id="staffRole" style="height:40px; border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:0 10px;">
-                <option value="admin">admin</option>
-                <option value="staff">staff</option>
-              </select>
-            </label>
-            <button id="saveStaff" class="btn primary">Add / Update</button>
+        <div id="superOnly" class="card" style="display:none;">
+          <div class="font-semibold">Super admin only</div>
+          <div class="muted text-sm">Only the owner can create and assign branch admins/staff.</div>
+        </div>
+
+        <div id="missingInvites" class="card" style="display:none;">
+          <div class="font-semibold">Invites table missing</div>
+          <div class="muted text-sm">Apply migration <code>0028_staff_invites_and_audit_logs.sql</code> to enable branch-scoped invites.</div>
+        </div>
+
+        <div id="content" style="display:none;">
+          <div class="grid" style="display:grid; gap:14px; grid-template-columns: 1fr 1fr; align-items:start;">
+            <div class="card">
+              <div class="flex-between" style="gap:10px;">
+                <div>
+                  <div class="font-bold">Invites</div>
+                  <div class="muted text-sm">Create an invite, then the user signs up with email + password.</div>
+                </div>
+                <span class="tag info">Recommended</span>
+              </div>
+
+              <div style="display:grid; grid-template-columns: 1fr 180px; gap:10px; margin-top:12px;">
+                <label style="display:flex; flex-direction:column; gap:6px;">
+                  <span class="muted text-sm">Email</span>
+                  <input id="inviteEmail" class="input" placeholder="staff@fingerlicking.com" />
+                </label>
+                <label style="display:flex; flex-direction:column; gap:6px;">
+                  <span class="muted text-sm">Role</span>
+                  <select id="inviteRole" class="input">
+                    <option value="branch_admin">branch_admin</option>
+                    <option value="staff">staff</option>
+                    <option value="admin">admin (legacy)</option>
+                  </select>
+                </label>
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr auto; gap:10px; margin-top:10px; align-items:end;">
+                <label style="display:flex; flex-direction:column; gap:6px;">
+                  <span class="muted text-sm">Branch</span>
+                  <select id="inviteBranch" class="input"></select>
+                </label>
+                <button id="createInvite" class="btn primary">Create</button>
+              </div>
+
+              <div id="inviteList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+            </div>
+
+            <div class="card">
+              <div class="font-bold">Existing users</div>
+              <div class="muted text-sm" style="margin-top:6px;">Assign branch, role, and deactivate accounts.</div>
+              <div id="usersList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+            </div>
           </div>
-          <div id="staffList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+
+          <div class="card" style="margin-top:14px;">
+            <div class="font-semibold">Legacy allowlist (compat)</div>
+            <div class="muted text-sm">If you don’t use invites, allowlist still works for <code>admin</code>/<code>staff</code>. Branch assignment won’t be automatic.</div>
+            <div style="display:grid; grid-template-columns: 1fr 140px auto; gap:10px; align-items:end; margin-top:10px;">
+              <label style="display:flex; flex-direction:column; gap:6px;">
+                <span class="muted text-sm">Email</span>
+                <input id="allowEmail" class="input" />
+              </label>
+              <label style="display:flex; flex-direction:column; gap:6px;">
+                <span class="muted text-sm">Role</span>
+                <select id="allowRole" class="input">
+                  <option value="admin">admin</option>
+                  <option value="staff">staff</option>
+                </select>
+              </label>
+              <button id="saveAllow" class="btn ghost">Save</button>
+            </div>
+            <div id="allowList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+          </div>
         </div>
       </div>
     </main>
   </div>
+
   <div id="toast" class="toast"></div>
+
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
-    import { fetchStaffAllowlist, upsertStaffAllowlist } from "../js/api.js";
+    import { fetchStaffInvites, upsertStaffInvite, deactivateStaffInvite, fetchStaffProfiles, updateProfile, fetchStaffAllowlist, upsertStaffAllowlist } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranches } from "../js/branches.js";
 
     renderSidebar("staff-roles.html");
     mountThemeToggle();
-    await requireAuth();
-    mountNotifications({ supabase: getClient() });
-    document.getElementById("saveStaff").addEventListener("click", save);
-    load();
+    const session = await requireAuth();
+    const supabase = getClient();
+    mountNotifications({ supabase });
 
-    async function load() {
-      const list = document.getElementById("staffList");
-      list.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
-      const { data, error } = await fetchStaffAllowlist();
-      if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-      if (!data || data.length===0) { list.innerHTML = `<div class="muted">No staff yet</div>`; return; }
-      list.innerHTML = data.map(r=>`
-        <div class="flex-between" style="padding:10px 12px; border:1px solid var(--color-border); border-radius: var(--radius-sm);">
-          <div>
-            <div class="font-semibold">${r.email}</div>
-            <div class="muted text-sm">${r.role}</div>
-          </div>
-          <span class="chip">${new Date(r.created_at).toLocaleDateString()}</span>
-        </div>
-      `).join("");
+    const isSuper = session.profile.role === "super_admin";
+    document.getElementById("superOnly").style.display = isSuper ? "none" : "";
+    document.getElementById("content").style.display = isSuper ? "" : "none";
+
+    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: isSuper });
+    onBranchChange(loadAll);
+    document.getElementById("reload").addEventListener("click", loadAll);
+
+    if (isSuper) {
+      fillBranches();
+      document.getElementById("createInvite").addEventListener("click", createInvite);
+      document.getElementById("saveAllow").addEventListener("click", saveAllow);
+      loadAll();
     }
 
-    async function save() {
-      const email = document.getElementById("staffEmail").value.trim().toLowerCase();
-      const role = document.getElementById("staffRole").value;
-      if (!email.includes("@")) { showToast("Invalid email"); return; }
+    function fillBranches() {
+      const branches = getBranches() || [];
+      const select = document.getElementById("inviteBranch");
+      select.innerHTML = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+    }
+
+    async function loadAll() {
+      fillBranches();
+      await Promise.all([loadInvites(), loadUsers(), loadAllowlist()]);
+    }
+
+    async function loadInvites() {
+      const list = document.getElementById("inviteList");
+      const missing = document.getElementById("missingInvites");
+      missing.style.display = "none";
+      list.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+
+      const branchId = getSelectedBranchId();
+      const res = await fetchStaffInvites({ branchId });
+      if (res.error) {
+        if (res.error.code === "42P01" || res.error.code === "PGRST205") {
+          missing.style.display = "";
+          list.innerHTML = "";
+          return;
+        }
+        list.innerHTML = `<div class="muted">Error: ${res.error.message}</div>`;
+        return;
+      }
+      const invites = res.data || [];
+      if (!invites.length) {
+        list.innerHTML = `<div class="muted">No invites yet</div>`;
+        return;
+      }
+      list.innerHTML = invites
+        .map((i) => {
+          const status = i.is_active ? `<span class="tag success">Active</span>` : `<span class="tag">Inactive</span>`;
+          return `
+            <div class="flex-between" style="padding:10px 12px; border:1px solid var(--color-border); border-radius: var(--radius-sm); gap:10px;">
+              <div>
+                <div class="font-semibold">${i.email}</div>
+                <div class="muted text-sm">${i.role} • ${(i.branch_id || "").slice(0, 8)}</div>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                ${status}
+                ${i.is_active ? `<button class="btn ghost" data-deactivate="${i.email}">Deactivate</button>` : ""}
+              </div>
+            </div>`;
+        })
+        .join("");
+
+      list.querySelectorAll("[data-deactivate]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const email = btn.dataset.deactivate;
+          const { error } = await deactivateStaffInvite(email);
+          if (error) return showToast(error.message);
+          showToast("Invite deactivated");
+          loadInvites();
+        });
+      });
+    }
+
+    async function createInvite() {
+      const email = document.getElementById("inviteEmail").value.trim().toLowerCase();
+      const role = document.getElementById("inviteRole").value;
+      const branch_id = document.getElementById("inviteBranch").value;
+      if (!email.includes("@")) return showToast("Invalid email");
+      if (!branch_id) return showToast("Select a branch");
+
+      const { error } = await upsertStaffInvite({ email, role, branch_id, is_active: true });
+      if (error) return showToast(error.message);
+      showToast("Invite created");
+      document.getElementById("inviteEmail").value = "";
+      loadInvites();
+    }
+
+    async function loadUsers() {
+      const list = document.getElementById("usersList");
+      list.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const branchId = getSelectedBranchId();
+      const { data, error } = await fetchStaffProfiles({ branchId: branchId === "all" ? undefined : branchId });
+      if (error) {
+        list.innerHTML = `<div class="muted">Error: ${error.message}</div>`;
+        return;
+      }
+      const users = data || [];
+      if (!users.length) {
+        list.innerHTML = `<div class="muted">No staff users found yet.</div>`;
+        return;
+      }
+
+      const branches = getBranches() || [];
+      const branchOptions = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+
+      list.innerHTML = users
+        .map((u) => {
+          const disabled = u.is_active === false;
+          return `
+            <div class="card" style="box-shadow:none; border:1px solid var(--color-border); padding:12px;">
+              <div class="flex-between" style="gap:10px; flex-wrap:wrap;">
+                <div>
+                  <div class="font-semibold">${u.name || "Staff"} <span class="muted text-xs">(${u.role})</span></div>
+                  <div class="muted text-sm">${u.phone || "—"} • ${u.id.slice(0, 8)}</div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <select class="input" data-branch="${u.id}" style="height:38px; min-width:180px;">
+                    ${branchOptions}
+                  </select>
+                  <select class="input" data-role="${u.id}" style="height:38px; min-width:160px;">
+                    <option value="branch_admin">branch_admin</option>
+                    <option value="staff">staff</option>
+                    <option value="admin">admin (legacy)</option>
+                  </select>
+                  <label class="chip-btn ${disabled ? "" : "active"}" data-active="${u.id}">${disabled ? "Disabled" : "Active"}</label>
+                  <button class="btn primary" data-save="${u.id}">Save</button>
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      users.forEach((u) => {
+        const bSel = list.querySelector(`[data-branch="${u.id}"]`);
+        const rSel = list.querySelector(`[data-role="${u.id}"]`);
+        if (bSel) bSel.value = u.branch_id || branches[0]?.id || "";
+        if (rSel) rSel.value = u.role || "staff";
+      });
+
+      list.querySelectorAll("[data-active]").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          chip.classList.toggle("active");
+          chip.textContent = chip.classList.contains("active") ? "Active" : "Disabled";
+        });
+      });
+
+      list.querySelectorAll("[data-save]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.save;
+          const branch_id = list.querySelector(`[data-branch="${id}"]`)?.value || null;
+          const role = list.querySelector(`[data-role="${id}"]`)?.value || null;
+          const isActive = list.querySelector(`[data-active="${id}"]`)?.classList.contains("active") ?? true;
+          const { error, schemaFallback } = await updateProfile(id, { branch_id, role, is_active: isActive });
+          if (error) return showToast(error.message);
+          showToast(schemaFallback ? "Saved (active flag skipped until migration applied)" : "Saved");
+          loadUsers();
+        });
+      });
+    }
+
+    async function loadAllowlist() {
+      const list = document.getElementById("allowList");
+      list.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const { data, error } = await fetchStaffAllowlist();
+      if (error) {
+        list.innerHTML = `<div class="muted">Error: ${error.message}</div>`;
+        return;
+      }
+      const rows = data || [];
+      if (!rows.length) {
+        list.innerHTML = `<div class="muted">No allowlist entries.</div>`;
+        return;
+      }
+      list.innerHTML = rows
+        .map(
+          (r) => `
+          <div class="flex-between" style="padding:10px 12px; border:1px solid var(--color-border); border-radius: var(--radius-sm);">
+            <div>
+              <div class="font-semibold">${r.email}</div>
+              <div class="muted text-sm">${r.role}</div>
+            </div>
+            <span class="chip">${new Date(r.created_at).toLocaleDateString()}</span>
+          </div>
+        `,
+        )
+        .join("");
+    }
+
+    async function saveAllow() {
+      const email = document.getElementById("allowEmail").value.trim().toLowerCase();
+      const role = document.getElementById("allowRole").value;
+      if (!email.includes("@")) return showToast("Invalid email");
       const { error } = await upsertStaffAllowlist(email, role);
-      if (error) { showToast(error.message); return; }
-      showToast("Saved");
-      load();
+      if (error) return showToast(error.message);
+      showToast("Allowlist saved");
+      document.getElementById("allowEmail").value = "";
+      loadAllowlist();
     }
   </script>
 </body>
 </html>
+

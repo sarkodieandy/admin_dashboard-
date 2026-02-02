@@ -25,6 +25,7 @@
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
       </div>
       <div class="page">
@@ -72,11 +73,15 @@
     import { fmtMoney } from "../js/utils.js";
     import { fetchOrdersRange } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("analytics.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    onBranchChange(load);
 
     let revChart, statusChart, payChart;
     document.querySelectorAll("[data-range]").forEach((btn) => btn.addEventListener("click", () => quickRange(btn.dataset.range)));
@@ -104,7 +109,8 @@
       const dateTo = document.getElementById("to").value || null;
       const type = document.getElementById("type").value || null;
       const payment_method = document.getElementById("payment").value || null;
-      const { data, error } = await fetchOrdersRange({ dateFrom, dateTo, type, payment_method });
+      const branchId = getSelectedBranchId();
+      const { data, error } = await fetchOrdersRange({ dateFrom, dateTo, type, payment_method, branchId });
       if (error) return console.error(error);
       const orders = data || [];
       const kpi = computeKpis(orders);

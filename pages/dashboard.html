@@ -25,10 +25,7 @@
           <div class="muted" style="font-size: var(--text-sm)">Overview</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
-          <select class="input" style="height:38px; width:160px; padding-right:32px;">
-            <option>Downtown Branch</option>
-            <option>Airport Branch</option>
-          </select>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
           <button class="btn ghost" title="Search">🔍</button>
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <div style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#60a5fa,#2563eb); display:grid; place-items:center; color:white; font-weight:700;">A</div>
@@ -89,25 +86,37 @@
   <div id="toast" class="toast"></div>
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
-    import { requireAuth } from "../js/auth.js";
+    import { requireAuth, getClient } from "../js/auth.js";
     import { fetchRecentOrders } from "../js/api.js";
     import { fmtMoney, statusLabel, debug } from "../js/utils.js";
-    import { createClient } from "../js/supabaseClient.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("dashboard.html");
     mountThemeToggle();
-    const supabase = createClient();
-
-    await requireAuth();
+    const { profile } = await requireAuth();
+    const supabase = getClient();
     mountNotifications({ supabase });
+
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    onBranchChange(() => {
+      loadKpis();
+      loadRecent();
+      drawChart();
+    });
+
     loadKpis();
     loadRecent();
     drawChart();
 
     async function loadKpis() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const today = new Date(); today.setHours(0,0,0,0);
-      const { data, error } = await supabase.from("orders").select("total,status").gte("created_at", today.toISOString());
+      let q = supabase.from("orders").select("total,status,branch_id").gte("created_at", today.toISOString());
+      if (branchId) q = q.eq("branch_id", branchId);
+      const { data, error } = await q;
       if (error) debug("kpi orders error", error);
       const orders = data?.length || 0;
       const revenue = data?.reduce((s,o)=>s+Number(o.total||0),0)||0;
@@ -115,16 +124,20 @@
       document.getElementById("kpi-orders").textContent = orders;
       document.getElementById("kpi-revenue").textContent = fmtMoney(revenue);
       document.getElementById("kpi-cancel").textContent = cancel;
-      const { data: chats, error: chatErr } = await supabase.from("chats").select("id");
+      let chatsQ = supabase.from("chats").select("id,branch_id");
+      if (branchId) chatsQ = chatsQ.eq("branch_id", branchId);
+      const { data: chats, error: chatErr } = await chatsQ;
       if (chatErr) debug("kpi chats error", chatErr);
       document.getElementById("kpi-chats").textContent = chats?.length || 0;
       document.getElementById("kpi-time").textContent = "28 min";
     }
 
     async function loadRecent() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const list = document.getElementById("recentOrders");
       list.innerHTML = `<div class="skeleton" style="height:40px; border-radius:var(--radius-sm);"></div>`;
-      const { data, error } = await fetchRecentOrders();
+      const { data, error } = await fetchRecentOrders({ limit: 12, branchId: rawBranch });
       if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       if (!data || data.length===0) { list.innerHTML = `<div class="muted">No orders yet.</div>`; return; }
       list.innerHTML = data.map(o=>`
@@ -155,8 +168,12 @@
     }
 
     async function drawChart() {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const today = new Date(); today.setHours(0,0,0,0);
-      const { data, error } = await supabase.from("orders").select("created_at").gte("created_at", today.toISOString());
+      let q = supabase.from("orders").select("created_at,branch_id").gte("created_at", today.toISOString());
+      if (branchId) q = q.eq("branch_id", branchId);
+      const { data, error } = await q;
       if (error) debug("chart error", error);
       const buckets = Array.from({length:24},(_,h)=>({h, c:0}));
       (data||[]).forEach(o=>{

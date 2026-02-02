@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audit Logs • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div class="font-bold">Audit Logs</div>
+          <div class="muted" style="font-size: var(--text-sm)">Sensitive actions traceability</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
+          <button class="btn ghost" id="reload">Reload</button>
+        </div>
+      </div>
+      <div class="page">
+        <div id="superOnly" class="card" style="display:none;">
+          <div class="font-semibold">Super admin only</div>
+          <div class="muted text-sm">Audit logs are restricted to the owner.</div>
+        </div>
+
+        <div id="missing" class="card" style="display:none;">
+          <div class="font-semibold">Audit logs table missing</div>
+          <div class="muted text-sm">Apply migrations <code>0028_staff_invites_and_audit_logs.sql</code> and <code>0031_audit_triggers.sql</code>.</div>
+        </div>
+
+        <div id="tableCard" class="card" style="padding:0; display:none;">
+          <table class="table" id="auditTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Branch</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
+    import { fetchAuditLogs } from "../js/api.js";
+    import { fmtDateTime } from "../js/utils.js";
+    import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranchLabel } from "../js/branches.js";
+
+    renderSidebar("audit-logs.html");
+    mountThemeToggle();
+    const session = await requireAuth();
+    const supabase = getClient();
+    mountNotifications({ supabase });
+
+    const isSuper = session.profile.role === "super_admin";
+    document.getElementById("superOnly").style.display = isSuper ? "none" : "";
+
+    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: isSuper });
+
+    if (!isSuper) {
+      document.getElementById("tableCard").style.display = "none";
+      document.getElementById("missing").style.display = "none";
+    } else {
+      document.getElementById("reload").addEventListener("click", load);
+      onBranchChange(load);
+      load();
+    }
+
+    async function load() {
+      const tbody = document.querySelector("#auditTable tbody");
+      document.getElementById("tableCard").style.display = "";
+      document.getElementById("missing").style.display = "none";
+      tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+
+      const branchId = getSelectedBranchId();
+      const { data, error } = await fetchAuditLogs({ branchId, limit: 200, offset: 0 });
+      if (error) {
+        if (error.code === "42P01" || error.code === "PGRST205") {
+          document.getElementById("missing").style.display = "";
+          document.getElementById("tableCard").style.display = "none";
+          return;
+        }
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
+        return;
+      }
+
+      const rows = data || [];
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">No audit logs yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows
+        .map((r) => {
+          const branch = r.branch_id ? getBranchLabel(r.branch_id) : "—";
+          const actor = r.actor_id ? r.actor_id.slice(0, 8) : "—";
+          const change = summarizeChange(r.before, r.after);
+          return `
+            <tr>
+              <td class="muted text-sm">${fmtDateTime(r.created_at)}</td>
+              <td>${escapeHtml(`${r.actor_role || "unknown"} • ${actor}`)}</td>
+              <td><span class="tag info">${escapeHtml(r.action)}</span></td>
+              <td>${escapeHtml(`${r.entity} • ${(r.entity_id || "").slice(0, 8)}`)}</td>
+              <td>${escapeHtml(branch)}</td>
+              <td class="muted text-sm">${escapeHtml(change)}</td>
+            </tr>`;
+        })
+        .join("");
+    }
+
+    function summarizeChange(before, after) {
+      if (!before || !after) return "—";
+      try {
+        const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+        const diffs = [];
+        for (const k of keys) {
+          const b = JSON.stringify(before[k]);
+          const a = JSON.stringify(after[k]);
+          if (b !== a) diffs.push(`${k}: ${truncate(b)} → ${truncate(a)}`);
+        }
+        return diffs.slice(0, 2).join(" • ") + (diffs.length > 2 ? " …" : "");
+      } catch {
+        return "changed";
+      }
+    }
+
+    function truncate(s) {
+      const str = String(s ?? "");
+      return str.length > 18 ? str.slice(0, 18) + "…" : str;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
+

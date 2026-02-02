@@ -24,6 +24,7 @@
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
           <button class="btn primary" id="newPromo">New promo</button>
         </div>
       </div>
@@ -85,11 +86,19 @@
     import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
     import { fmtMoney } from "../js/utils.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("promotions.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    onBranchChange(() => {
+      closeModal();
+      load();
+      syncCreateButton();
+    });
 
     const tbody = document.querySelector("#promoTable tbody");
     const modal = document.getElementById("modal");
@@ -109,6 +118,12 @@
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      if (!editingId && !branchId) {
+        showToast("Select a branch before creating a promo");
+        return;
+      }
       const payload = {
         code: document.getElementById("code").value.trim(),
         type: document.getElementById("type").value,
@@ -117,18 +132,20 @@
         expires_at: document.getElementById("expiresAt").value ? new Date(document.getElementById("expiresAt").value).toISOString() : null,
         is_active: active,
       };
-      const res = editingId ? await updatePromo(editingId, payload) : await insertPromo(payload);
+      const res = editingId ? await updatePromo(editingId, payload) : await insertPromo({ ...payload, branch_id: branchId });
       if (res.error) return showToast(res.error.message);
       showToast(editingId ? "Promo updated" : "Promo created");
       closeModal();
       load();
     });
 
+    syncCreateButton();
     load();
 
     async function load() {
       tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const { data, error } = await fetchPromos();
+      const branchId = getSelectedBranchId();
+      const { data, error } = await fetchPromos({ branchId });
       if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
       const promos = data || [];
       if (!promos.length) { tbody.innerHTML = `<tr><td colspan="7" class="muted">No promos yet</td></tr>`; return; }
@@ -146,6 +163,14 @@
       tbody.querySelectorAll("[data-edit]").forEach((btn) =>
         btn.addEventListener("click", () => openModal(promos.find((p) => p.id === btn.dataset.edit)))
       );
+    }
+
+    function syncCreateButton() {
+      const rawBranch = getSelectedBranchId();
+      const isAll = rawBranch === "all";
+      const btn = document.getElementById("newPromo");
+      btn.disabled = isAll;
+      btn.title = isAll ? "Select a branch to create promos" : "";
     }
 
     function openModal(promo) {
@@ -169,4 +194,3 @@
   </script>
 </body>
 </html>
-

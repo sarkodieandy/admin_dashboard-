@@ -25,6 +25,7 @@
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
       </div>
       <div class="page">
@@ -60,12 +61,20 @@
     import { fmtDateTime } from "../js/utils.js";
     import { subscribeRealtime } from "../js/realtime.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("chats.html");
     mountThemeToggle();
     const session = await requireAuth();
     const supabase = getClient();
     mountNotifications({ supabase });
+    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: session.profile.role === "super_admin" });
+    onBranchChange(() => {
+      activeConv = null;
+      orderCtx.textContent = "Select a conversation";
+      loadConversations();
+    });
 
     const convList = document.getElementById("convList");
     const thread = document.getElementById("thread");
@@ -89,7 +98,8 @@
 
     async function loadConversations() {
       convList.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
-      const { data, error } = await fetchChats();
+      const branchId = getSelectedBranchId();
+      const { data, error } = await fetchChats({ branchId });
       if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
       convList.innerHTML = data.map(c => `

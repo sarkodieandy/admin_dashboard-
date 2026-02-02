@@ -25,6 +25,7 @@
         <div style="margin-left:auto; display:flex; gap:8px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <input id="search" class="input" placeholder="Search phone or name" style="max-width:220px;">
+          <select id="branchSwitcherSelect" class="input" style="max-width:200px;"></select>
           <select id="sort" class="input" style="max-width:200px;">
             <option value="recent">Sort: newest</option>
             <option value="orders">Sort: most orders</option>
@@ -72,11 +73,15 @@
     import { fmtDateTime, fmtMoney, debounce } from "../js/utils.js";
     import { fetchCustomers, fetchOrdersByUsers, fetchAddressesForUser } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("customers.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    onBranchChange(load);
 
     const tbody = document.querySelector("#custTable tbody");
     const drawer = document.getElementById("custDrawer");
@@ -95,10 +100,11 @@
 
     async function load() {
       tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      const branchId = getSelectedBranchId();
       const { data, error } = await fetchCustomers(250);
       if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
       customers = data || [];
-      const orders = await fetchOrdersByUsers(customers.map((c) => c.id));
+      const orders = await fetchOrdersByUsers(customers.map((c) => c.id), { branchId });
       if (!orders.error) {
         aggregates = buildAggregates(orders.data || []);
       }
@@ -190,6 +196,7 @@
     }
 
     async function openDrawer(id) {
+      const branchId = getSelectedBranchId();
       const cust = customers.find((c) => c.id === id);
       const agg = aggregates.get(id) || {};
       drawerName.textContent = cust?.name || "Guest";
@@ -197,7 +204,7 @@
       drawer.classList.add("show");
       drawerContent.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
       const { data: addresses } = await fetchAddressesForUser(id);
-      const ordersRes = await fetchOrdersByUsers([id]);
+      const ordersRes = await fetchOrdersByUsers([id], { branchId });
       const orders = ordersRes.data || [];
       const avg = agg.totalOrders ? agg.spend / agg.totalOrders : 0;
       const cancelRate = agg.totalOrders

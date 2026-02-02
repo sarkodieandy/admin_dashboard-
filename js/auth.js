@@ -19,6 +19,14 @@ export async function requireAuth() {
     window.location.href = "login.html";
     return null;
   }
+  if (profile.is_active === false) {
+    showToast("Account disabled. Contact the owner.");
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    window.location.href = "login.html";
+    return null;
+  }
   if (!["super_admin", "branch_admin", "admin", "staff"].includes(profile.role)) {
     showToast("Access denied: staff only");
     try {

@@ -24,6 +24,7 @@
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
       </div>
       <div class="page">
@@ -60,20 +61,25 @@
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
-    import { loadDeliverySettings, saveDeliverySettings } from "../js/api.js";
+    import { loadDeliverySettingsForBranch, saveDeliverySettingsForBranch } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("delivery-settings.html");
     mountThemeToggle();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: false });
+    onBranchChange(load);
     load();
     document.getElementById("saveBtn").addEventListener("click", save);
 
     async function load() {
       const status = document.getElementById("status");
       status.textContent = "Loading...";
-      const { data, error } = await loadDeliverySettings();
+      const branchId = getSelectedBranchId();
+      const { data, error } = await loadDeliverySettingsForBranch(branchId);
       if (error) { status.textContent = error.message; return; }
       if (data) {
         document.querySelectorAll("[data-field]").forEach(inp => inp.value = data[inp.dataset.field] ?? "");
@@ -81,9 +87,10 @@
       } else status.textContent = "No settings yet.";
     }
     async function save() {
+      const branchId = getSelectedBranchId();
       const payload = {};
       document.querySelectorAll("[data-field]").forEach(inp => payload[inp.dataset.field] = Number(inp.value||0));
-      const { error } = await saveDeliverySettings(payload);
+      const { error } = await saveDeliverySettingsForBranch(payload, branchId);
       if (error) { showToast(error.message); return; }
       showToast("Saved");
       load();

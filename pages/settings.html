@@ -24,6 +24,7 @@
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
         </div>
       </div>
       <div class="page">
@@ -113,15 +114,18 @@
   <script type="module">
     import { renderSidebar, showToast } from "../js/ui.js";
     import { requireAuth } from "../js/auth.js";
-    import { loadDeliverySettings, saveDeliverySettings, loadRestaurantSettings, saveRestaurantSettings } from "../js/api.js";
+    import { loadDeliverySettingsForBranch, saveDeliverySettingsForBranch, loadRestaurantSettingsForBranch, saveRestaurantSettingsForBranch } from "../js/api.js";
     import { createClient } from "../js/supabaseClient.js";
     import { mountNotifications } from "../js/notifications_ui.js";
     import { debugEnabled } from "../js/utils.js";
+    import { initBranchState, registerBranchSwitcher, getSelectedBranchId } from "../js/branches.js";
 
     renderSidebar("settings.html");
     const supabase = createClient();
-    await requireAuth();
+    const { profile } = await requireAuth();
     mountNotifications({ supabase });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: false });
 
     const stateKey = "adminSettingsLocal";
     const state = JSON.parse(localStorage.getItem(stateKey) || "{}");
@@ -205,7 +209,7 @@
     });
 
     // Delivery settings persisted to Supabase delivery_settings singleton table
-    loadDeliverySettings().then(({ data }) => {
+    loadDeliverySettingsForBranch(getSelectedBranchId()).then(({ data }) => {
       if (data) {
         document.getElementById("minOrder").value = data.minimum_order_amount ?? "";
         document.getElementById("baseFee").value = data.base_fee ?? "";
@@ -216,6 +220,7 @@
     });
 
     document.getElementById("saveDelivery").addEventListener("click", async () => {
+      const branchId = getSelectedBranchId();
       const payload = {
         base_fee: Number(document.getElementById("baseFee").value || 0),
         free_radius_km: Number(document.getElementById("freeRadius").value || 0),
@@ -223,7 +228,7 @@
         max_delivery_distance_km: Number(document.getElementById("maxDistance").value || 0),
         minimum_order_amount: Number(document.getElementById("minOrder").value || 0),
       };
-      const { error } = await saveDeliverySettings(payload);
+      const { error } = await saveDeliverySettingsForBranch(payload, branchId);
       if (error) return showToast(error.message);
       showToast("Delivery settings saved");
     });
@@ -231,8 +236,9 @@
     await loadCloud();
 
     async function loadCloud() {
+      const branchId = getSelectedBranchId();
       syncStatus.textContent = "Checking cloud settings…";
-      const res = await loadRestaurantSettings();
+      const res = await loadRestaurantSettingsForBranch(branchId);
       if (res?.missing) {
         syncStatus.textContent = "Local only (apply migration to enable cloud sync)";
         return;
@@ -274,6 +280,7 @@
     }
 
     async function saveCloud() {
+      const branchId = getSelectedBranchId();
       syncStatus.textContent = "Saving…";
       const payload = {
         rest_name: document.getElementById("restName").value || null,
@@ -292,7 +299,7 @@
         sound_alerts: !!state.sound,
         profanity_filter: !!state.profanity,
       };
-      const res = await saveRestaurantSettings(payload);
+      const res = await saveRestaurantSettingsForBranch(payload, branchId);
       if (res?.missing) {
         syncStatus.textContent = "Saved locally (cloud table missing)";
         showToast("Saved (local)");
