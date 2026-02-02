@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-label="Admin dashboard illustration">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#93c5fd" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#fb923c" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.78"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#0b1220" flood-opacity="0.35"/>
+    </filter>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 .55 0" result="c"/>
+      <feMerge>
+        <feMergeNode in="c"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="800" fill="none"/>
+
+  <!-- Soft skyline -->
+  <g opacity="0.30">
+    <path d="M0 620c120-60 210-40 330-80 150-52 220-160 360-156 180 5 210 104 330 124 88 14 130-2 180-24v316H0z"
+      fill="url(#sky)"/>
+    <path d="M0 700c160-40 250-20 360-50 180-50 220-130 360-124 170 7 220 86 320 100 90 12 120 0 160-12v186H0z"
+      fill="#60a5fa" opacity="0.22"/>
+  </g>
+
+  <!-- Stores -->
+  <g transform="translate(135 210)" filter="url(#softShadow)">
+    <rect x="0" y="70" width="190" height="150" rx="18" fill="url(#card)"/>
+    <rect x="18" y="98" width="60" height="90" rx="10" fill="#e2e8f0"/>
+    <rect x="92" y="98" width="78" height="34" rx="10" fill="#e2e8f0"/>
+    <rect x="92" y="140" width="78" height="48" rx="10" fill="#e2e8f0"/>
+    <path d="M0 72h190l-16-46c-2-6-8-10-14-10H30c-6 0-12 4-14 10z" fill="url(#accent)"/>
+    <rect x="30" y="38" width="130" height="18" rx="9" fill="#fff" opacity="0.85"/>
+    <text x="95" y="248" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="800" font-size="18" fill="#0b1220" opacity="0.85">Branch A</text>
+  </g>
+
+  <g transform="translate(900 260)" filter="url(#softShadow)">
+    <rect x="0" y="70" width="190" height="150" rx="18" fill="url(#card)"/>
+    <rect x="18" y="98" width="60" height="90" rx="10" fill="#e2e8f0"/>
+    <rect x="92" y="98" width="78" height="34" rx="10" fill="#e2e8f0"/>
+    <rect x="92" y="140" width="78" height="48" rx="10" fill="#e2e8f0"/>
+    <path d="M0 72h190l-16-46c-2-6-8-10-14-10H30c-6 0-12 4-14 10z" fill="url(#accent)"/>
+    <rect x="30" y="38" width="130" height="18" rx="9" fill="#fff" opacity="0.85"/>
+    <text x="95" y="248" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="800" font-size="18" fill="#0b1220" opacity="0.85">Branch B</text>
+  </g>
+
+  <!-- Curvy path + pins -->
+  <g opacity="0.88" filter="url(#glow)">
+    <path d="M330 360c120-70 220-70 320-30s180 48 270 30"
+      fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round" stroke-dasharray="3 18"/>
+    <g transform="translate(470 316)">
+      <path d="M24 0c-13 0-24 10-24 24 0 20 24 44 24 44s24-24 24-44C48 10 37 0 24 0z" fill="#fb923c"/>
+      <circle cx="24" cy="24" r="9" fill="#fff" opacity="0.9"/>
+    </g>
+    <g transform="translate(700 292)">
+      <path d="M24 0c-13 0-24 10-24 24 0 20 24 44 24 44s24-24 24-44C48 10 37 0 24 0z" fill="#60a5fa"/>
+      <circle cx="24" cy="24" r="9" fill="#fff" opacity="0.9"/>
+    </g>
+    <g transform="translate(610 432)">
+      <rect x="0" y="0" width="210" height="58" rx="18" fill="#ffffff" fill-opacity="0.85"/>
+      <circle cx="34" cy="29" r="16" fill="#fb923c"/>
+      <rect x="64" y="18" width="120" height="10" rx="5" fill="#0b1220" opacity="0.25"/>
+      <rect x="64" y="34" width="86" height="10" rx="5" fill="#0b1220" opacity="0.18"/>
+    </g>
+  </g>
+
+  <!-- Laptop / dashboard -->
+  <g transform="translate(340 320)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="520" height="320" rx="28" fill="url(#card)"/>
+    <rect x="32" y="32" width="456" height="238" rx="18" fill="#0b1220" opacity="0.08"/>
+
+    <!-- chart -->
+    <g transform="translate(70 80)">
+      <rect x="0" y="0" width="170" height="128" rx="14" fill="#ffffff" opacity="0.80" stroke="#0b1220" stroke-opacity="0.08"/>
+      <circle cx="34" cy="30" r="16" fill="#60a5fa" opacity="0.9"/>
+      <path d="M34 30l14 0a14 14 0 0 1-14 14z" fill="#fb923c" opacity="0.9"/>
+      <rect x="18" y="62" width="118" height="10" rx="5" fill="#0b1220" opacity="0.18"/>
+      <rect x="18" y="82" width="84" height="10" rx="5" fill="#0b1220" opacity="0.14"/>
+      <rect x="18" y="102" width="132" height="10" rx="5" fill="#0b1220" opacity="0.14"/>
+    </g>
+
+    <!-- bars -->
+    <g transform="translate(270 78)">
+      <rect x="0" y="0" width="208" height="130" rx="14" fill="#ffffff" opacity="0.80" stroke="#0b1220" stroke-opacity="0.08"/>
+      <g transform="translate(22 22)">
+        <rect x="0" y="68" width="18" height="28" rx="6" fill="#60a5fa"/>
+        <rect x="28" y="52" width="18" height="44" rx="6" fill="#60a5fa" opacity="0.85"/>
+        <rect x="56" y="34" width="18" height="62" rx="6" fill="#fb923c"/>
+        <rect x="84" y="58" width="18" height="38" rx="6" fill="#60a5fa" opacity="0.75"/>
+        <rect x="112" y="24" width="18" height="72" rx="6" fill="#fb923c" opacity="0.95"/>
+        <rect x="140" y="44" width="18" height="52" rx="6" fill="#60a5fa" opacity="0.9"/>
+      </g>
+    </g>
+
+    <!-- bottom strip -->
+    <rect x="32" y="246" width="456" height="24" rx="12" fill="#0b1220" opacity="0.06"/>
+
+    <!-- base -->
+    <path d="M-20 320h560c18 0 32 14 32 32v18H-52v-18c0-18 14-32 32-32z" fill="#0b1220" opacity="0.16"/>
+    <rect x="214" y="336" width="92" height="10" rx="5" fill="#ffffff" opacity="0.55"/>
+  </g>
+
+  <!-- Rider -->
+  <g transform="translate(840 610)" filter="url(#softShadow)" opacity="0.92">
+    <rect x="-4" y="72" width="254" height="12" rx="6" fill="#0b1220" opacity="0.18"/>
+    <circle cx="40" cy="70" r="28" fill="#111827" opacity="0.8"/>
+    <circle cx="40" cy="70" r="16" fill="#ffffff" opacity="0.8"/>
+    <circle cx="180" cy="70" r="28" fill="#111827" opacity="0.8"/>
+    <circle cx="180" cy="70" r="16" fill="#ffffff" opacity="0.8"/>
+    <path d="M40 70h94l34-36h44" fill="none" stroke="#fb923c" stroke-width="12" stroke-linecap="round"/>
+    <path d="M90 34h62" stroke="#60a5fa" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+    <rect x="138" y="10" width="58" height="30" rx="10" fill="#fb923c"/>
+    <circle cx="120" cy="6" r="16" fill="#fb923c"/>
+  </g>
+</svg>

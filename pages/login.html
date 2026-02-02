@@ -14,311 +14,351 @@
     .login-shell {
       min-height: 100vh;
       display: grid;
-      grid-template-columns: 1fr;
-      background: radial-gradient(1200px 800px at 25% 0%, rgba(59, 130, 246, 0.16), transparent 55%),
-        radial-gradient(900px 650px at 80% 30%, rgba(16, 185, 129, 0.14), transparent 60%),
-        var(--color-bg);
+      place-items: center;
+      padding: 22px;
+      background:
+        radial-gradient(1200px 700px at 15% 15%, rgba(59,130,246,0.26), transparent 55%),
+        radial-gradient(980px 640px at 85% 35%, rgba(249,115,22,0.22), transparent 58%),
+        radial-gradient(820px 520px at 50% 90%, rgba(16,185,129,0.14), transparent 62%),
+        #070a10;
     }
 
-    .login-grid {
-      width: min(1040px, 100%);
-      margin: 0 auto;
-      padding: 18px;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 18px;
-      align-items: stretch;
-    }
-
-    .login-hero {
-      position: relative;
-      border-radius: 18px;
+    .login-frame {
+      width: min(1180px, 100%);
+      min-height: 640px;
+      border-radius: 24px;
       overflow: hidden;
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      background: rgba(15, 23, 42, 0.35);
-      min-height: 220px;
-      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.25);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      box-shadow: 0 28px 90px rgba(2, 6, 23, 0.65);
+      display: grid;
+      grid-template-columns: 0.44fr 0.56fr;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(14px);
     }
 
-    .login-hero::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      background-image: url("https://images.unsplash.com/photo-1555992336-cbf7c0e0a0e2?auto=format&fit=crop&w=1800&q=80");
-      background-size: cover;
-      background-position: center;
-      transform: scale(1.02);
-      filter: saturate(1.05) contrast(1.02);
-    }
-
-    .login-hero::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 2;
-      background: linear-gradient(120deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.35) 60%, rgba(2, 6, 23, 0.65));
-    }
-
-    .login-hero-art {
-      position: absolute;
-      inset: 0;
-      background: url("../assets/restaurant-art.svg") no-repeat 88% 82% / min(560px, 78%);
-      opacity: 0.85;
-      mix-blend-mode: screen;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .login-hero-inner {
-      position: relative;
-      z-index: 3;
-      padding: 22px 22px;
+    .login-panel {
+      padding: 30px 28px 22px 28px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      height: 100%;
-      color: rgba(255, 255, 255, 0.92);
+      gap: 18px;
+      background:
+        linear-gradient(180deg, rgba(2, 6, 23, 0.82), rgba(2, 6, 23, 0.62)),
+        radial-gradient(900px 480px at 10% 10%, rgba(59,130,246,0.22), transparent 60%);
+      color: rgba(255,255,255,0.92);
+      border-right: 1px solid rgba(148, 163, 184, 0.16);
     }
 
-    .login-hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.12);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      backdrop-filter: blur(8px);
-      width: fit-content;
-      font-size: 12px;
-      letter-spacing: 0.2px;
-    }
-
-    .login-hero-title {
-      margin: 12px 0 6px 0;
-      font-size: 26px;
-      line-height: 1.1;
-      font-weight: 800;
-      letter-spacing: -0.3px;
-    }
-
-    .login-hero-sub {
-      margin: 0;
-      max-width: 52ch;
-      color: rgba(255, 255, 255, 0.78);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .login-card {
-      width: 100%;
-      padding: 22px;
-      border-radius: 18px;
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.18);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.66));
-      backdrop-filter: blur(10px);
-      position: relative;
-      overflow: hidden;
-    }
-
-    html[data-theme="dark"] .login-card {
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.54));
-    }
-
-    .login-card::before {
-      content: "";
-      position: absolute;
-      inset: -1px;
-      border-radius: 19px;
-      background: linear-gradient(
-        135deg,
-        rgba(59, 130, 246, 0.45),
-        rgba(16, 185, 129, 0.35),
-        rgba(251, 146, 60, 0.32)
-      );
-      opacity: 0.22;
-      pointer-events: none;
-    }
-
-    .login-card > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    .login-card-head {
+    .login-top {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 14px;
+      gap: 12px;
     }
 
-    .login-kicker {
-      margin-top: 2px;
-      font-size: 12px;
-      letter-spacing: 0.2px;
-      color: var(--color-muted);
-    }
-
-    .login-help {
-      display: inline-flex;
+    .brand-row {
+      display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.35);
-      background: rgba(148, 163, 184, 0.12);
-      color: var(--color-text);
-      font-size: 12px;
-      cursor: pointer;
+      gap: 12px;
     }
 
-    .login-help:hover {
-      background: rgba(148, 163, 184, 0.18);
-    }
-
-    .hint {
-      border-radius: 14px;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      background: rgba(148, 163, 184, 0.10);
-      padding: 12px;
-    }
-
-    .login-brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 2px;
-    }
-
-    .login-brand-mark {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.08);
-      border: 1px solid rgba(148, 163, 184, 0.32);
+    .brand-mark {
+      height: 44px;
+      width: 44px;
+      border-radius: 16px;
       display: grid;
       place-items: center;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.25);
+    }
+
+    .brand-mark svg { width: 28px; height: 28px; }
+
+    .brand-title {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.1;
+      font-weight: 900;
+      letter-spacing: -0.4px;
+    }
+
+    .brand-subtitle {
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.72);
+      line-height: 1.35;
+    }
+
+    .panel-divider {
+      height: 1px;
+      background: rgba(148, 163, 184, 0.16);
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.2px;
+    }
+
+    .role-picker {
+      display: grid;
+      gap: 10px;
+    }
+
+    .role-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.86);
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    .role-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.08); }
+
+    .role-btn.active {
+      background: linear-gradient(90deg, rgba(249,115,22,0.28), rgba(249,115,22,0.10));
+      border-color: rgba(249,115,22,0.55);
+      box-shadow: 0 18px 50px rgba(249,115,22,0.12);
+    }
+
+    .role-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .role-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      flex: 0 0 auto;
+    }
+
+    .role-label {
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: -0.15px;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    html[data-theme="dark"] .login-brand-mark {
-      background: rgba(255, 255, 255, 0.06);
-    }
-
-    .login-brand-mark img {
-      width: 40px;
-      height: 40px;
+    .role-check {
+      opacity: 0;
       transform: translateY(1px);
+      transition: opacity 120ms ease;
+      font-weight: 900;
+    }
+    .role-btn.active .role-check { opacity: 1; }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .input-wrap {
+      position: relative;
+      display: grid;
+      align-items: center;
+    }
+
+    .input-wrap .input {
+      height: 44px;
+      padding-left: 42px;
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(148, 163, 184, 0.22);
+      color: rgba(255,255,255,0.92);
+    }
+
+    .input-wrap .input::placeholder { color: rgba(255,255,255,0.55); }
+
+    .input-wrap .lead {
+      position: absolute;
+      left: 12px;
+      color: rgba(255,255,255,0.70);
+    }
+
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .link {
+      color: rgba(255,255,255,0.72);
+      font-size: 13px;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .link:hover { color: rgba(255,255,255,0.88); }
+
+    .login-primary {
+      width: 100%;
+      height: 52px;
+      border-radius: 14px;
+      border: 1px solid rgba(249,115,22,0.55);
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      color: #0b1220;
+      font-weight: 900;
+      font-size: 18px;
+      box-shadow: 0 20px 50px rgba(249,115,22,0.22);
+    }
+    .login-primary:hover { filter: brightness(1.02); transform: translateY(-1px); }
+
+    .panel-footer {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      color: rgba(255,255,255,0.70);
+      font-size: 12px;
+    }
+
+    .login-visual {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 700px at 65% 10%, rgba(147,197,253,0.42), transparent 55%),
+        radial-gradient(900px 600px at 90% 80%, rgba(251,146,60,0.28), transparent 55%),
+        linear-gradient(180deg, rgba(30, 41, 59, 0.22), rgba(2, 6, 23, 0.25));
+    }
+
+    .login-visual::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("../assets/admin-illustration.svg") no-repeat center bottom / cover;
       opacity: 0.95;
+      transform: scale(1.02);
+      pointer-events: none;
     }
 
-    .login-card:focus-within {
-      border-color: rgba(59, 130, 246, 0.45);
-      box-shadow: 0 26px 70px rgba(2, 6, 23, 0.18), 0 0 0 6px rgba(59, 130, 246, 0.10);
+    .login-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(1000px 600px at 50% 10%, rgba(255,255,255,0.10), transparent 55%);
+      pointer-events: none;
     }
 
-    html[data-theme="dark"] .login-card:focus-within {
-      border-color: rgba(96, 165, 250, 0.50);
-      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.35), 0 0 0 6px rgba(96, 165, 250, 0.12);
-    }
-
-    @media (min-width: 920px) {
-      .login-grid {
-        grid-template-columns: 1.1fr 0.9fr;
-        padding: 24px;
-      }
-      .login-hero {
-        min-height: 520px;
-      }
-      .login-card {
-        max-width: 420px;
-        margin-left: auto;
-        align-self: center;
-      }
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .login-hero::before {
-        animation: heroFloat 12s ease-in-out infinite;
-      }
-      @keyframes heroFloat {
-        0%, 100% { transform: scale(1.03) translateY(0px); }
-        50% { transform: scale(1.05) translateY(-6px); }
-      }
+    @media (max-width: 980px) {
+      .login-frame { grid-template-columns: 1fr; min-height: auto; }
+      .login-visual { min-height: 320px; }
+      .login-panel { border-right: 0; border-bottom: 1px solid rgba(148, 163, 184, 0.16); }
     }
   </style>
 </head>
 <body>
   <div class="login-shell">
-    <main class="login-grid">
-      <section class="login-hero" aria-hidden="true">
-        <div class="login-hero-art" aria-hidden="true"></div>
-        <div class="login-hero-inner">
+    <main class="login-frame">
+      <section class="login-panel">
+        <div class="login-top">
           <div>
-            <div class="login-hero-badge">🍗 Finger Licking Restaurant</div>
-            <h1 class="login-hero-title">Admin Dashboard</h1>
-            <p class="login-hero-sub">
-              Manage branches, orders, menus, riders, chats, reviews, and delivery settings in real time.
-            </p>
-          </div>
-          <p class="login-hero-sub" style="margin-top:auto;">
-            Tip: Super Admin can switch branches and manage staff roles.
-          </p>
-        </div>
-      </section>
-
-      <section class="login-card card">
-        <div class="login-card-head">
-          <div>
-            <div class="login-brand">
-              <span class="login-brand-mark" aria-hidden="true">
-                <img src="../assets/restaurant-art.svg" alt="" />
-              </span>
-              <div class="font-extrabold" style="font-size:20px; letter-spacing:0.2px;">Sign in</div>
+            <div class="brand-row">
+              <div class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 14c0-4.1 3.6-7 8-7s8 2.9 8 7" stroke="rgba(255,255,255,0.9)" stroke-width="2.2" stroke-linecap="round"/>
+                  <path d="M3 16h18c1 0 2 .8 2 1.8S22 20 21 20H3c-1 0-2-.8-2-1.8S2 16 3 16Z" fill="#fb923c"/>
+                  <path d="M12 5a2 2 0 0 0-2 2" stroke="#fb923c" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <h1 class="brand-title">Admin Dashboard</h1>
+                <p class="brand-subtitle">Manage your restaurant network</p>
+              </div>
             </div>
-            <div class="login-kicker">Finger Licking Admin</div>
           </div>
           <button class="btn ghost icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme">🌓</button>
         </div>
 
-        <div id="fileWarn" class="card" style="margin-top:14px; padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.08); display:none;">
-          <div class="font-semibold">You opened this from your files.</div>
-          <div class="muted text-sm">This dashboard must be served over HTTP (modules won’t load on <code>file://</code>).</div>
-          <div class="muted text-sm" style="margin-top:6px;">Run: <code>cd admin-dashboard && python3 -m http.server 5173</code> then open <code>http://localhost:5173/pages/login.html</code></div>
+        <div class="panel-divider"></div>
+
+        <div>
+          <h2 class="section-title">Select Admin Role</h2>
+          <div class="brand-subtitle" style="margin-top:6px;">Access is verified after sign‑in.</div>
         </div>
 
-        <div class="hint" style="margin:14px 0 14px 0;">
-          <div class="muted text-sm">Access is role-based and verified after sign-in.</div>
-          <div class="muted text-xs" style="margin-top:6px;">Choose your login type to route you correctly — you can’t “switch” roles here.</div>
+        <div class="role-picker" id="rolePicker">
+          <button class="role-btn" type="button" data-role="staff">
+            <span class="role-left">
+              <span class="role-icon" aria-hidden="true">👤</span>
+              <span class="role-label">Admin / Staff</span>
+            </span>
+            <span class="role-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="role-btn" type="button" data-role="branch_admin">
+            <span class="role-left">
+              <span class="role-icon" aria-hidden="true">🏬</span>
+              <span class="role-label">Branch Admin</span>
+            </span>
+            <span class="role-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="role-btn active" type="button" data-role="super_admin">
+            <span class="role-left">
+              <span class="role-icon" aria-hidden="true">🛡️</span>
+              <span class="role-label">Super Admin</span>
+            </span>
+            <span class="role-check" aria-hidden="true">✓</span>
+          </button>
+          <input id="loginAs" name="loginAs" type="hidden" value="super_admin" />
         </div>
-        <form id="loginForm" class="space-y">
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <label class="label" for="loginAs">Login type</label>
-            <select id="loginAs" name="loginAs" class="input" style="height:44px;">
-              <option value="staff">Staff</option>
-              <option value="branch_admin">Branch Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
+
+        <div id="fileWarn" class="card" style="padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.10); display:none;">
+          <div class="font-semibold" style="color: rgba(255,255,255,0.92);">You opened this from your files.</div>
+          <div class="muted text-sm" style="color: rgba(255,255,255,0.74);">This dashboard must be served over HTTP (modules won’t load on <code>file://</code>).</div>
+          <div class="muted text-sm" style="margin-top:6px; color: rgba(255,255,255,0.74);">Run: <code>cd admin-dashboard && python3 -m http.server 8000</code> then open <code>http://localhost:8000/pages/login.html</code></div>
+        </div>
+
+        <form id="loginForm" class="space-y" style="margin-top: 2px;">
+          <div class="field">
+            <label class="label" for="email" style="color: rgba(255,255,255,0.72);">Email</label>
+            <div class="input-wrap">
+              <span class="lead" aria-hidden="true">✉️</span>
+              <input id="email" name="email" type="email" required class="input" autocomplete="email" placeholder="you@company.com" />
+            </div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <label class="label" for="email">Email</label>
-            <input id="email" name="email" type="email" required class="input" autocomplete="email" />
+          <div class="field">
+            <label class="label" for="password" style="color: rgba(255,255,255,0.72);">Password</label>
+            <div class="input-wrap">
+              <span class="lead" aria-hidden="true">🔒</span>
+              <input id="password" name="password" type="password" required class="input" autocomplete="current-password" placeholder="••••••••" />
+            </div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <label class="label" for="password">Password</label>
-            <input id="password" name="password" type="password" required class="input" autocomplete="current-password" />
+
+          <div class="panel-actions">
+            <button class="link" id="forgotBtn" type="button">Forgot password?</button>
+            <div class="muted text-xs" style="color: rgba(255,255,255,0.58);">Staff only</div>
           </div>
-          <button class="btn primary" id="submitBtn" type="submit" style="width:100%;">
-            <span id="submitLabel">Sign in</span>
+
+          <button class="login-primary" id="submitBtn" type="submit">
+            <span id="submitLabel">Login</span>
           </button>
         </form>
-        <div id="loginError" class="muted text-sm" style="margin-top:10px; color: var(--color-danger); min-height: 18px;"></div>
-        <div class="muted text-xs" style="margin-top:12px;">
-          If you can’t sign in, ask the owner to add your email in <strong>Staff & Roles</strong>.
+
+        <div id="loginError" class="muted text-sm" style="margin-top:10px; color: #fb7185; min-height: 18px;"></div>
+        <div class="panel-footer">
+          © <span id="year"></span> Finger Licking. All rights reserved.
         </div>
       </section>
+
+      <section class="login-visual" aria-hidden="true"></section>
     </main>
   </div>
 
@@ -342,6 +382,19 @@
       document.getElementById("fileWarn").style.display = "block";
     }
 
+    document.getElementById("year").textContent = String(new Date().getFullYear());
+
+    const roleButtons = Array.from(document.querySelectorAll("#rolePicker .role-btn"));
+    function setRole(role) {
+      loginAsEl.value = role;
+      roleButtons.forEach((b) => b.classList.toggle("active", b.dataset.role === role));
+    }
+    roleButtons.forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
+
+    document.getElementById("forgotBtn").addEventListener("click", () => {
+      showToast("Ask the owner to reset your password.");
+    });
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
@@ -353,16 +406,14 @@
         return;
       }
 
-      submitBtn.classList.add("loading");
       submitBtn.disabled = true;
-      submitLabel.innerHTML = `<span class="spinner" aria-hidden="true"></span> Signing in…`;
+      submitLabel.textContent = "Signing in…";
 
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         errorEl.textContent = error.message;
-        submitBtn.classList.remove("loading");
         submitBtn.disabled = false;
-        submitLabel.textContent = "Sign in";
+        submitLabel.textContent = "Login";
         return;
       }
 
@@ -376,9 +427,8 @@
         if (!isStaffRole) {
           await supabase.auth.signOut();
           errorEl.textContent = "Access denied. This account is not staff/admin.";
-          submitBtn.classList.remove("loading");
           submitBtn.disabled = false;
-          submitLabel.textContent = "Sign in";
+          submitLabel.textContent = "Login";
           return;
         }
 
@@ -388,25 +438,22 @@
         if (loginAs === "super_admin" && normalized !== "super_admin") {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Super Admin account.";
-          submitBtn.classList.remove("loading");
           submitBtn.disabled = false;
-          submitLabel.textContent = "Sign in";
+          submitLabel.textContent = "Login";
           return;
         }
         if (loginAs === "branch_admin" && !["branch_admin", "super_admin"].includes(normalized)) {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Branch Admin account.";
-          submitBtn.classList.remove("loading");
           submitBtn.disabled = false;
-          submitLabel.textContent = "Sign in";
+          submitLabel.textContent = "Login";
           return;
         }
         if (loginAs === "staff" && !["staff", "branch_admin", "super_admin"].includes(normalized)) {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Staff account.";
-          submitBtn.classList.remove("loading");
           submitBtn.disabled = false;
-          submitLabel.textContent = "Sign in";
+          submitLabel.textContent = "Login";
           return;
         }
       }
