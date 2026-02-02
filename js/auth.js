@@ -10,7 +10,7 @@ function mountLogoutButton({ profile }) {
 
   const btn = document.createElement("button");
   btn.id = "logoutBtn";
-  btn.className = "btn ghost";
+  btn.className = "btn danger";
   btn.type = "button";
   btn.title = "Sign out";
   btn.setAttribute("aria-label", "Sign out");
