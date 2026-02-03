@@ -107,8 +107,12 @@
 	      if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
 	      if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
 	      convList.innerHTML = data.map(c => `
-	        <button class="nav-item" data-id="${c.id}">
-	          <span>💬</span><span>Order #${c.order_id?.slice(0,8) || "—"}</span>
+	        <button class="conv-item" type="button" data-id="${c.id}">
+	          <span class="conv-item__icon" aria-hidden="true">💬</span>
+	          <span class="conv-item__text">
+	            <span class="conv-item__title">Order #${c.order_id?.slice(0,8) || "—"}</span>
+	            <span class="conv-item__sub muted text-xs">${fmtDateTime(c.created_at)}</span>
+	          </span>
 	        </button>`).join("");
 	      convList.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => openConversation(btn.dataset.id)));
 
@@ -116,19 +120,30 @@
 	      if (raw) openConversation(raw);
 	    }
 
-    async function openConversation(id) {
-      activeConv = id;
-      thread.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
-      const { data, error } = await fetchChatMessages(id);
-      if (error) { thread.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-      if (!data || data.length === 0) { thread.innerHTML = `<div class="muted">No messages</div>`; return; }
-      thread.innerHTML = data.map(m => `
-        <div class="card" style="padding:10px;">
-          <div class="muted text-xs">${m.sender_id === session?.user?.id ? "Staff" : "Customer"} • ${fmtDateTime(m.created_at)}</div>
-          <div class="font-semibold">${m.message || ""}</div>
-        </div>`).join("");
-      orderCtx.textContent = `Chat ${id.slice(0,8)} • ${data.length} messages`;
-    }
-  </script>
-</body>
-</html>
+	    async function openConversation(id) {
+	      activeConv = id;
+	      convList.querySelectorAll("[data-id]").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+	      thread.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+	      const { data, error } = await fetchChatMessages(id);
+	      if (error) { thread.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+	      if (!data || data.length === 0) { thread.innerHTML = `<div class="muted">No messages</div>`; return; }
+	      thread.innerHTML = data.map(m => `
+	        <div class="chat-msg ${m.sender_id === session?.user?.id ? "staff" : "customer"}">
+	          <div class="chat-msg__meta muted text-xs">${m.sender_id === session?.user?.id ? "Staff" : "Customer"} • ${fmtDateTime(m.created_at)}</div>
+	          <div class="chat-msg__bubble">${escapeHtml(m.message || "")}</div>
+	        </div>`).join("");
+	      orderCtx.textContent = `Chat ${id.slice(0,8)} • ${data.length} messages`;
+	      thread.scrollTop = thread.scrollHeight;
+	    }
+
+	    function escapeHtml(s) {
+	      return String(s ?? "")
+	        .replaceAll("&", "&amp;")
+	        .replaceAll("<", "&lt;")
+	        .replaceAll(">", "&gt;")
+	        .replaceAll('"', "&quot;")
+	        .replaceAll("'", "&#039;");
+	    }
+	  </script>
+	</body>
+	</html>

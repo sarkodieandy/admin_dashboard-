@@ -379,7 +379,7 @@
         .map((t) => `<div class="flex-between"><div>${statusLabel(t.status)}</div><div class="muted text-sm">${fmtDateTime(t.created_at)}</div></div>`)
         .join("");
       const actions = nextActions(o.status)
-        .map((s) => `<button class="chip-btn" data-action="${s}">${statusLabel(s)}</button>`)
+        .map((s) => `<button class="chip-btn track-btn track-${s}" data-action="${s}">${statusLabel(s)}</button>`)
         .join("");
       drawerSubtitle.textContent = `${statusLabel(o.status)} • ${fmtMoney(o.total)}`;
       drawerContent.innerHTML = `
@@ -397,9 +397,9 @@
           <div class="flex-between font-semibold"><span>Total</span><span>${fmtMoney(o.total)}</span></div>
         </div>
         <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
-          <div class="flex-between" style="margin-bottom:8px;">
+          <div class="flex-between" style="margin-bottom:8px; gap:12px; flex-wrap:wrap;">
             <div class="font-semibold">Timeline</div>
-            <div class="flex" style="gap:8px;">${actions}</div>
+            <div class="tracking-actions">${actions}</div>
           </div>
           ${timelineHtml || '<div class="muted text-sm">No events yet</div>'}
         </div>
@@ -483,7 +483,7 @@
       .slice(index + 1)
       .map(
         (status) =>
-          `<button class="btn ghost small" data-delivery-id="${delivery.id}" data-delivery-status="${status}">${deliveryStatusLabel(
+          `<button class="chip-btn track-btn track-${status}" data-delivery-id="${delivery.id}" data-delivery-status="${status}">${deliveryStatusLabel(
             status,
           )}</button>`,
       )
