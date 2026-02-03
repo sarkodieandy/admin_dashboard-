@@ -41,8 +41,8 @@
         </div>
 
         <div id="content" style="display:none;">
-          <div class="grid" style="display:grid; gap:14px; grid-template-columns: 1fr 1fr; align-items:start;">
-            <div class="card">
+	          <div class="grid" style="display:grid; gap:14px; grid-template-columns: 1fr 1fr; align-items:start;">
+	            <div class="card">
               <div class="flex-between" style="gap:10px;">
                 <div>
                   <div class="font-bold">Invites</div>
@@ -73,19 +73,59 @@
                 <button id="createInvite" class="btn primary">Create</button>
               </div>
 
-              <div id="inviteList" class="space-y-2" style="margin-top: var(--space-3);"></div>
-            </div>
+	              <div id="inviteList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+	            </div>
 
-            <div class="card">
-              <div class="font-bold">Existing users</div>
-              <div class="muted text-sm" style="margin-top:6px;">Assign branch, role, and deactivate accounts.</div>
-              <div id="usersList" class="space-y-2" style="margin-top: var(--space-3);"></div>
-            </div>
-          </div>
+	            <div class="card">
+	              <div class="font-bold">Existing users</div>
+	              <div class="muted text-sm" style="margin-top:6px;">Assign branch, role, and deactivate accounts.</div>
+	              <div id="usersList" class="space-y-2" style="margin-top: var(--space-3);"></div>
+	            </div>
+	          </div>
 
-          <div class="card" style="margin-top:14px;">
-            <div class="font-semibold">Legacy allowlist (compat)</div>
-            <div class="muted text-sm">If you don’t use invites, allowlist still works for <code>admin</code>/<code>staff</code>. Branch assignment won’t be automatic.</div>
+	          <div class="card" style="margin-top:14px;">
+	            <div class="flex-between" style="gap:10px; flex-wrap:wrap;">
+	              <div>
+	                <div class="font-bold">Create staff login</div>
+	                <div class="muted text-sm">Create staff accounts (email + password) and write role/branch to the database.</div>
+	              </div>
+	              <span class="tag warning">Sensitive</span>
+	            </div>
+	            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+	              <label style="display:flex; flex-direction:column; gap:6px;">
+	                <span class="muted text-sm">Email</span>
+	                <input id="newStaffEmail" class="input" placeholder="staff@fingerlicking.com" />
+	              </label>
+	              <label style="display:flex; flex-direction:column; gap:6px;">
+	                <span class="muted text-sm">Password</span>
+	                <input id="newStaffPassword" class="input" type="password" placeholder="Minimum 8 characters" />
+	              </label>
+	            </div>
+	            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
+	              <label style="display:flex; flex-direction:column; gap:6px;">
+	                <span class="muted text-sm">Role</span>
+	                <select id="newStaffRole" class="input">
+	                  <option value="branch_admin">branch_admin</option>
+	                  <option value="staff">staff</option>
+	                  <option value="admin">admin (legacy)</option>
+	                </select>
+	              </label>
+	              <label style="display:flex; flex-direction:column; gap:6px;">
+	                <span class="muted text-sm">Branch</span>
+	                <select id="newStaffBranch" class="input"></select>
+	              </label>
+	              <div style="display:flex; align-items:end;">
+	                <button id="createStaffBtn" class="btn primary" style="width:100%;">Create login</button>
+	              </div>
+	            </div>
+	            <div class="muted text-sm" style="margin-top:10px;">
+	              Tip: Set a temporary password and tell staff to change it after first login.
+	            </div>
+	          </div>
+
+	          <div class="card" style="margin-top:14px;">
+	            <div class="font-semibold">Legacy allowlist (compat)</div>
+	            <div class="muted text-sm">If you don’t use invites, allowlist still works for <code>admin</code>/<code>staff</code>. Branch assignment won’t be automatic.</div>
             <div style="display:grid; grid-template-columns: 1fr 140px auto; gap:10px; align-items:end; margin-top:10px;">
               <label style="display:flex; flex-direction:column; gap:6px;">
                 <span class="muted text-sm">Email</span>
@@ -131,18 +171,24 @@
     onBranchChange(loadAll);
     document.getElementById("reload").addEventListener("click", loadAll);
 
-    if (isSuper) {
-      fillBranches();
-      document.getElementById("createInvite").addEventListener("click", createInvite);
-      document.getElementById("saveAllow").addEventListener("click", saveAllow);
-      loadAll();
-    }
+	    if (isSuper) {
+	      fillBranches();
+	      document.getElementById("createInvite").addEventListener("click", createInvite);
+	      document.getElementById("createStaffBtn").addEventListener("click", createStaffLogin);
+	      document.getElementById("saveAllow").addEventListener("click", saveAllow);
+	      loadAll();
+	    }
 
-    function fillBranches() {
-      const branches = getBranches() || [];
-      const select = document.getElementById("inviteBranch");
-      select.innerHTML = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
-    }
+	    function fillBranches() {
+	      const branches = getBranches() || [];
+	      const select = document.getElementById("inviteBranch");
+	      select.innerHTML = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+
+	      const createBranch = document.getElementById("newStaffBranch");
+	      if (createBranch) {
+	        createBranch.innerHTML = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+	      }
+	    }
 
     async function loadAll() {
       fillBranches();
@@ -199,7 +245,7 @@
       });
     }
 
-    async function createInvite() {
+	    async function createInvite() {
       const email = document.getElementById("inviteEmail").value.trim().toLowerCase();
       const role = document.getElementById("inviteRole").value;
       const branch_id = document.getElementById("inviteBranch").value;
@@ -211,7 +257,37 @@
       showToast("Invite created");
       document.getElementById("inviteEmail").value = "";
       loadInvites();
-    }
+	    }
+
+	    async function createStaffLogin() {
+	      const email = document.getElementById("newStaffEmail").value.trim().toLowerCase();
+	      const password = document.getElementById("newStaffPassword").value;
+	      const role = document.getElementById("newStaffRole").value;
+	      const branch_id = document.getElementById("newStaffBranch").value;
+	      if (!email.includes("@")) return showToast("Invalid email");
+	      if (!branch_id) return showToast("Select a branch");
+	      if ((password || "").length < 8) return showToast("Password must be at least 8 characters");
+
+	      const btn = document.getElementById("createStaffBtn");
+	      btn.disabled = true;
+	      btn.textContent = "Creating…";
+	      try {
+	        const res = await supabase.functions.invoke("admin-create-staff", {
+	          body: { email, password, role, branch_id },
+	        });
+	        if (res.error) return showToast(res.error.message);
+	        if (res.data?.error) return showToast(res.data.error);
+	        showToast("Staff login created");
+	        document.getElementById("newStaffEmail").value = "";
+	        document.getElementById("newStaffPassword").value = "";
+	        await loadUsers();
+	      } catch (e) {
+	        showToast(String(e?.message || e));
+	      } finally {
+	        btn.disabled = false;
+	        btn.textContent = "Create login";
+	      }
+	    }
 
     async function loadUsers() {
       const list = document.getElementById("usersList");
@@ -328,4 +404,3 @@
   </script>
 </body>
 </html>
-

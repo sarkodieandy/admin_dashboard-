@@ -35,6 +35,7 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
   const markAll = pop.querySelector("#notifMarkAll");
 
   let open = false;
+  let lastUnread = 0;
 
   function setOpen(next) {
     open = next;
@@ -68,9 +69,21 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
     }
     const items = data || [];
     const unread = items.filter((n) => !n.is_read).length;
+    const unreadIncreased = unread > lastUnread;
+    lastUnread = unread;
     if (badge) {
       badge.style.display = unread ? "grid" : "none";
       badge.textContent = unread > 99 ? "99+" : String(unread);
+      if (unreadIncreased) {
+        badge.classList.remove("pulse");
+        // Force reflow to restart animation.
+        // eslint-disable-next-line no-unused-expressions
+        badge.offsetWidth;
+        badge.classList.add("pulse");
+        btn.classList.remove("pulse");
+        btn.offsetWidth;
+        btn.classList.add("pulse");
+      }
     }
     if (!items.length) {
       list.innerHTML = `<div class="muted" style="padding:10px 12px;">No notifications yet.</div>`;
@@ -102,8 +115,10 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
   }
 
   // Realtime refresh
-  const channel =
-    supabase?.channel?.("notif-ui")?.on("postgres_changes", { event: "INSERT", schema: "public", table: "staff_notifications" }, refresh);
+  const channel = supabase
+    ?.channel
+    ?.("notif-ui")
+    ?.on("postgres_changes", { event: "INSERT", schema: "public", table: "staff_notifications" }, refresh);
   channel?.subscribe?.();
 
   refresh();

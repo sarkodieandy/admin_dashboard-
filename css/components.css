@@ -51,6 +51,23 @@
   place-items: center;
   border: 2px solid var(--color-panel);
 }
+.notif-badge.pulse {
+  animation: badge-pop 240ms var(--ease-soft);
+}
+.icon-btn.pulse {
+  animation: bell-pop 240ms var(--ease-soft);
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.9); }
+  70% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+@keyframes bell-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
 
 .notif-popover {
   position: absolute;
