@@ -92,9 +92,9 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
     list.innerHTML = items
       .map((n) => {
         const icon = n.type === "new_order" ? "🧾" : n.type === "customer_message" ? "💬" : "🔔";
-        const href = n.entity_id ? `orders.html#${n.entity_id}` : "orders.html";
+        const href = resolveHref(n);
         return `
-          <a class="notif-item ${n.is_read ? "" : "unread"}" data-id="${n.id}" href="${href}">
+          <a class="notif-item ${n.is_read ? "" : "unread"}" data-id="${n.id}" data-href="${href}" href="${href}">
             <div class="notif-icon">${icon}</div>
             <div class="notif-body">
               <div class="notif-title">${escapeHtml(n.title || "Notification")}</div>
@@ -107,9 +107,16 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
       .join("");
 
     list.querySelectorAll(".notif-item").forEach((a) =>
-      a.addEventListener("click", async () => {
+      a.addEventListener("click", async (e) => {
+        e.preventDefault();
         const id = a.dataset.id;
-        if (id) await markNotificationRead(id);
+        if (id) {
+          try {
+            await markNotificationRead(id);
+          } catch {}
+        }
+        const href = a.dataset.href || a.getAttribute("href") || "orders.html";
+        window.location.href = href;
       })
     );
   }
@@ -135,4 +142,18 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function resolveHref(n) {
+  const entityType = String(n?.entity_type || "").toLowerCase().trim();
+  const entityId = String(n?.entity_id || "").trim();
+  const type = String(n?.type || "").toLowerCase().trim();
+
+  if (entityType === "chat" && entityId) return `chats.html#${entityId}`;
+  if (entityType === "order" && entityId) return `orders.html#${entityId}`;
+
+  // Backward compatible (older rows store order_id only)
+  if (type === "customer_message" && entityId) return `orders.html#${entityId}`;
+  if (entityId) return `orders.html#${entityId}`;
+  return "orders.html";
 }

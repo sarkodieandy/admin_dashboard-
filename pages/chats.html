@@ -92,22 +92,29 @@
       openConversation(activeConv);
     });
 
-    loadConversations();
-    const unsub = subscribeRealtime({ onMessages: () => activeConv && openConversation(activeConv) });
-    window.addEventListener("beforeunload", unsub);
+	    loadConversations();
+	    const unsub = subscribeRealtime({ onMessages: () => activeConv && openConversation(activeConv) });
+	    window.addEventListener("beforeunload", unsub);
+	    window.addEventListener("hashchange", () => {
+	      const raw = (window.location.hash || "").replace("#", "").trim();
+	      if (raw) openConversation(raw);
+	    });
 
-    async function loadConversations() {
-      convList.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
-      const branchId = getSelectedBranchId();
-      const { data, error } = await fetchChats({ branchId });
-      if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-      if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
-      convList.innerHTML = data.map(c => `
-        <button class="nav-item" data-id="${c.id}">
-          <span>💬</span><span>Order #${c.order_id?.slice(0,8) || "—"}</span>
-        </button>`).join("");
-      convList.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => openConversation(btn.dataset.id)));
-    }
+	    async function loadConversations() {
+	      convList.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+	      const branchId = getSelectedBranchId();
+	      const { data, error } = await fetchChats({ branchId });
+	      if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+	      if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
+	      convList.innerHTML = data.map(c => `
+	        <button class="nav-item" data-id="${c.id}">
+	          <span>💬</span><span>Order #${c.order_id?.slice(0,8) || "—"}</span>
+	        </button>`).join("");
+	      convList.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => openConversation(btn.dataset.id)));
+
+	      const raw = (window.location.hash || "").replace("#", "").trim();
+	      if (raw) openConversation(raw);
+	    }
 
     async function openConversation(id) {
       activeConv = id;
