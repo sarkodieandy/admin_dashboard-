@@ -78,7 +78,7 @@
 
 	            <div class="card">
 	              <div class="font-bold">Existing users</div>
-	              <div class="muted text-sm" style="margin-top:6px;">Assign branch, role, and deactivate accounts.</div>
+	              <div class="muted text-sm" style="margin-top:6px;">Assign branch, role, deactivate accounts, and grant extra branch access.</div>
 	              <div id="usersList" class="space-y-2" style="margin-top: var(--space-3);"></div>
 	            </div>
 	          </div>
@@ -149,10 +149,37 @@
 
   <div id="toast" class="toast"></div>
 
+  <div id="branchAccessModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="branchAccessTitle">
+      <header>
+        <div>
+          <div id="branchAccessTitle" class="font-semibold">Branch access</div>
+          <div id="branchAccessSubtitle" class="muted text-sm">Grant additional branches for this user.</div>
+        </div>
+        <button id="branchAccessClose" class="btn ghost small" type="button">Close</button>
+      </header>
+      <div id="branchAccessBody" class="stack" style="gap:10px;"></div>
+      <div class="flex-between" style="margin-top:12px;">
+        <button id="branchAccessCancel" class="btn ghost" type="button">Cancel</button>
+        <button id="branchAccessSave" class="btn primary" type="button">Save access</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
-    import { fetchStaffInvites, upsertStaffInvite, deactivateStaffInvite, fetchStaffProfiles, updateProfile, fetchStaffAllowlist, upsertStaffAllowlist } from "../js/api.js";
+    import {
+      fetchStaffInvites,
+      upsertStaffInvite,
+      deactivateStaffInvite,
+      fetchStaffProfiles,
+      fetchStaffBranchAccess,
+      setStaffBranchAccess,
+      updateProfile,
+      fetchStaffAllowlist,
+      upsertStaffAllowlist
+    } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
     import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranches } from "../js/branches.js";
 
@@ -176,8 +203,123 @@
 	      document.getElementById("createInvite").addEventListener("click", createInvite);
 	      document.getElementById("createStaffBtn").addEventListener("click", createStaffLogin);
 	      document.getElementById("saveAllow").addEventListener("click", saveAllow);
+        mountBranchAccessModal();
 	      loadAll();
 	    }
+
+      const staffAccessByUser = new Map();
+      let branchAccessModalUser = null;
+
+      function mountBranchAccessModal() {
+        const modal = document.getElementById("branchAccessModal");
+        const close = () => closeBranchAccessModal();
+        document.getElementById("branchAccessClose").addEventListener("click", close);
+        document.getElementById("branchAccessCancel").addEventListener("click", close);
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) close();
+        });
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") close();
+        });
+        document.getElementById("branchAccessSave").addEventListener("click", saveBranchAccessFromModal);
+      }
+
+      function openBranchAccessModalForUser(user) {
+        const branches = getBranches() || [];
+        if (!branches.length) return showToast("No branches available");
+
+        const modal = document.getElementById("branchAccessModal");
+        const title = document.getElementById("branchAccessTitle");
+        const subtitle = document.getElementById("branchAccessSubtitle");
+        const body = document.getElementById("branchAccessBody");
+
+        branchAccessModalUser = user;
+        title.textContent = `Branch access • ${user.name || "Staff"}`;
+        subtitle.textContent = `Primary branch is always included. Select extra branches for cross-branch access.`;
+
+        const rowBranch = document.querySelector(`[data-branch="${user.id}"]`);
+        const primaryBranchId = rowBranch?.value || user.branch_id || "";
+        const accessSet = new Set(staffAccessByUser.get(user.id) || []);
+
+        body.innerHTML = branches
+          .map((b) => {
+            const isPrimary = b.id === primaryBranchId;
+            const isChecked = isPrimary || accessSet.has(b.id);
+            const disabled = isPrimary ? "disabled" : "";
+            return `
+              <label class="chip-btn ${isPrimary ? "active" : ""}" style="justify-content:space-between;">
+                <span style="display:flex; align-items:center; gap:10px; min-width:0;">
+                  <input type="checkbox" data-branch-access="${b.id}" ${isChecked ? "checked" : ""} ${disabled} />
+                  <span style="font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(b.name || "Branch")}</span>
+                </span>
+                <span class="muted text-xs">${isPrimary ? "Primary" : ""}</span>
+              </label>
+            `;
+          })
+          .join("");
+
+        modal.classList.add("show");
+        modal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeBranchAccessModal() {
+        const modal = document.getElementById("branchAccessModal");
+        modal.classList.remove("show");
+        modal.setAttribute("aria-hidden", "true");
+        branchAccessModalUser = null;
+        document.getElementById("branchAccessBody").innerHTML = "";
+      }
+
+      async function saveBranchAccessFromModal() {
+        if (!branchAccessModalUser) return;
+        const branches = getBranches() || [];
+        const userId = branchAccessModalUser.id;
+        const rowBranch = document.querySelector(`[data-branch="${userId}"]`);
+        const primaryBranchId = rowBranch?.value || branchAccessModalUser.branch_id || "";
+
+        const checked = Array.from(document.querySelectorAll("[data-branch-access]"))
+          .filter((el) => el.checked)
+          .map((el) => el.dataset.branchAccess)
+          .filter((id) => id && id !== primaryBranchId);
+
+        const btn = document.getElementById("branchAccessSave");
+        btn.disabled = true;
+        btn.textContent = "Saving…";
+        try {
+          const { error } = await setStaffBranchAccess({ userId, branchIds: checked });
+          if (error) return showToast(error.message);
+          staffAccessByUser.set(userId, checked);
+          updateAccessSummary(userId, primaryBranchId, branches);
+          showToast("Branch access saved");
+          closeBranchAccessModal();
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Save access";
+        }
+      }
+
+      function updateAccessSummary(userId, primaryBranchId, branches) {
+        const el = document.querySelector(`[data-access-summary="${userId}"]`);
+        if (!el) return;
+        const extras = (staffAccessByUser.get(userId) || []).filter((b) => b && b !== primaryBranchId);
+        if (!extras.length) {
+          el.innerHTML = `<span class="muted text-xs">Single branch</span>`;
+          return;
+        }
+        const names = extras
+          .map((id) => branches.find((b) => b.id === id)?.name || id.slice(0, 8))
+          .join(", ");
+        el.innerHTML = `<span class="tag info" title="${escapeHtml(names)}">Extra: ${escapeHtml(names)}</span>`;
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
 
 	    function fillBranches() {
 	      const branches = getBranches() || [];
@@ -307,15 +449,30 @@
       const branches = getBranches() || [];
       const branchOptions = branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
 
+      // Load extra branch access per user (super admin only).
+      staffAccessByUser.clear();
+      const accessRes = await fetchStaffBranchAccess({ userIds: users.map((u) => u.id) });
+      if (accessRes?.error) {
+        showToast(`Branch access load error: ${accessRes.error.message}`);
+      } else {
+        (accessRes.data || []).forEach((row) => {
+          const current = staffAccessByUser.get(row.user_id) || [];
+          current.push(row.branch_id);
+          staffAccessByUser.set(row.user_id, current);
+        });
+      }
+
       list.innerHTML = users
         .map((u) => {
           const disabled = u.is_active === false;
+          const accessSummary = `<div data-access-summary="${u.id}" style="margin-top:6px; max-width: 360px;"></div>`;
           return `
             <div class="card" style="box-shadow:none; border:1px solid var(--color-border); padding:12px;">
               <div class="flex-between" style="gap:10px; flex-wrap:wrap;">
                 <div>
                   <div class="font-semibold">${u.name || "Staff"} <span class="muted text-xs">(${u.role})</span></div>
                   <div class="muted text-sm">${u.phone || "—"} • ${u.id.slice(0, 8)}</div>
+                  ${accessSummary}
                 </div>
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                   <select class="input" data-branch="${u.id}" style="height:38px; min-width:180px;">
@@ -326,6 +483,7 @@
                     <option value="staff">staff</option>
                     <option value="admin">admin (legacy)</option>
                   </select>
+                  <button class="btn ghost small" data-access-btn="${u.id}" type="button">Branch access</button>
                   <label class="chip-btn ${disabled ? "" : "active"}" data-active="${u.id}">${disabled ? "Disabled" : "Active"}</label>
                   <button class="btn primary" data-save="${u.id}">Save</button>
                 </div>
@@ -340,6 +498,16 @@
         const rSel = list.querySelector(`[data-role="${u.id}"]`);
         if (bSel) bSel.value = u.branch_id || branches[0]?.id || "";
         if (rSel) rSel.value = u.role || "staff";
+        updateAccessSummary(u.id, bSel?.value || u.branch_id, branches);
+      });
+
+      list.querySelectorAll("[data-access-btn]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const userId = btn.dataset.accessBtn;
+          const user = users.find((u) => u.id === userId);
+          if (!user) return;
+          openBranchAccessModalForUser(user);
+        });
       });
 
       list.querySelectorAll("[data-active]").forEach((chip) => {
@@ -357,6 +525,14 @@
           const isActive = list.querySelector(`[data-active="${id}"]`)?.classList.contains("active") ?? true;
           const { error, schemaFallback } = await updateProfile(id, { branch_id, role, is_active: isActive });
           if (error) return showToast(error.message);
+          // Ensure we don't redundantly store the current primary branch as extra access.
+          const existing = (staffAccessByUser.get(id) || []).filter((b) => b && b !== branch_id);
+          if (isSuper) {
+            const access = await setStaffBranchAccess({ userId: id, branchIds: existing });
+            if (access.error) return showToast(access.error.message);
+            staffAccessByUser.set(id, existing);
+            updateAccessSummary(id, branch_id, branches);
+          }
           showToast(schemaFallback ? "Saved (active flag skipped until migration applied)" : "Saved");
           loadUsers();
         });

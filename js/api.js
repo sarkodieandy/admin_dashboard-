@@ -378,6 +378,45 @@ export async function fetchStaffProfiles({ branchId, limit = 200, includeCustome
   return q;
 }
 
+export async function fetchStaffBranchAccess({ userIds = [] } = {}) {
+  if (!userIds.length) return { data: [], error: null };
+  return supabase
+    .from("staff_branch_access")
+    .select("user_id,branch_id,created_at")
+    .in("user_id", userIds);
+}
+
+export async function setStaffBranchAccess({ userId, branchIds = [] }) {
+  if (!userId) return { data: null, error: { message: "Missing userId" } };
+  const desired = new Set((branchIds || []).filter(Boolean));
+
+  const existing = await supabase
+    .from("staff_branch_access")
+    .select("branch_id")
+    .eq("user_id", userId);
+  if (existing.error) return existing;
+
+  const current = new Set((existing.data || []).map((r) => r.branch_id));
+  const toInsert = [...desired].filter((b) => !current.has(b));
+  const toDelete = [...current].filter((b) => !desired.has(b));
+
+  if (toInsert.length) {
+    const ins = await supabase
+      .from("staff_branch_access")
+      .insert(toInsert.map((branch_id) => ({ user_id: userId, branch_id })));
+    if (ins.error) return ins;
+  }
+  if (toDelete.length) {
+    const del = await supabase
+      .from("staff_branch_access")
+      .delete()
+      .eq("user_id", userId)
+      .in("branch_id", toDelete);
+    if (del.error) return del;
+  }
+  return { data: { ok: true }, error: null };
+}
+
 export async function updateProfile(id, payload) {
   const res = await supabase.from("profiles").update(payload).eq("id", id).select("*").maybeSingle();
   if (res.error && isMissingColumnError(res.error, "is_active") && "is_active" in payload) {

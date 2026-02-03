@@ -46,7 +46,13 @@ export async function initBranchState({ role, profileBranchId }) {
       state.selected = state.branches.length === 1 ? state.branches[0].id : "all";
     }
   } else {
-    state.selected = profileBranchId || state.branches[0]?.id || "all";
+    // For multi-branch users (granted via RLS + staff_branch_access), respect their last selection.
+    // Otherwise default to their profile branch.
+    const stored = state.selected;
+    const hasMultipleBranches = state.branches.length > 1;
+    const storedIsValid =
+      (stored === "all" && hasMultipleBranches) || state.branches.some((branch) => branch.id === stored);
+    state.selected = storedIsValid ? stored : profileBranchId || state.branches[0]?.id || "all";
   }
   localStorage.setItem(STORAGE_KEY, state.selected);
   notify();
@@ -82,7 +88,9 @@ export function setSelectedBranch(branchId) {
 export function registerBranchSwitcher(selectElement, { allowAll = false } = {}) {
   if (!selectElement) return;
   switcher = selectElement;
-  allowAllSelection = allowAll;
+  // Auto-enable "All branches" when the user has access to multiple branches.
+  // Super admins can always use "All branches".
+  allowAllSelection = allowAll || state.branches.length > 1;
   switcher.addEventListener("change", () => {
     setSelectedBranch(switcher.value);
   });
