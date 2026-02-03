@@ -85,7 +85,7 @@ export async function updateMenuItem(id, payload) {
 }
 
 export async function insertMenuItem(payload) {
-  return supabase.from("menu_items").insert(payload);
+  return supabase.from("menu_items").insert(payload).select("id").single();
 }
 
 export async function insertCategory({ name, sort_order = 0, branch_id }) {

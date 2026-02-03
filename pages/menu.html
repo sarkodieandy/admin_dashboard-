@@ -114,11 +114,12 @@
   <div class="modal-backdrop" id="itemModal">
     <div class="modal">
       <header><div class="font-semibold" id="itemModalTitle">Add item</div><button class="btn ghost" data-close="itemModal">✕</button></header>
-      <form id="itemForm">
-        <div>
-          <div class="label">Name</div>
-          <input class="input" name="name" required />
-        </div>
+	      <form id="itemForm">
+	        <input type="hidden" name="id" />
+	        <div>
+	          <div class="label">Name</div>
+	          <input class="input" name="name" required />
+	        </div>
         <div>
           <div class="label">Description</div>
           <textarea class="input" name="description" rows="2"></textarea>
@@ -133,15 +134,28 @@
             <input class="input" name="base_price" type="number" step="0.01" required />
           </div>
         </div>
-        <div class="flex-between" style="gap:8px;">
-          <div style="flex:1;">
-            <div class="label">Image URL (optional)</div>
-            <input class="input" name="image_url" />
-          </div>
-          <label style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" name="is_sold_out" /> Sold out
-          </label>
-        </div>
+	        <div class="flex-between" style="gap:8px;">
+	          <div style="flex:1;">
+	            <div class="label">Image</div>
+	            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+	              <input class="input" name="image_url" placeholder="Paste image URL (optional)" style="flex:1; min-width:220px;" />
+	              <label class="btn secondary" style="white-space:nowrap;">
+	                Upload…
+	                <input id="itemImageFile" type="file" accept="image/*" style="display:none;" />
+	              </label>
+	            </div>
+	            <div class="muted text-sm" style="margin-top:6px;">
+	              Tip: Use upload for best results. Images are stored in Supabase Storage.
+	            </div>
+	            <div id="itemImagePreview" style="margin-top:10px; display:none; align-items:center; gap:10px;">
+	              <img id="itemImagePreviewImg" alt="" style="width:72px; height:72px; object-fit:cover; border-radius:14px; border:1px solid var(--color-border);" />
+	              <button class="btn ghost" id="clearItemImage" type="button">Remove image</button>
+	            </div>
+	          </div>
+	          <label style="display:flex; align-items:center; gap:8px;">
+	            <input type="checkbox" name="is_sold_out" /> Sold out
+	          </label>
+	        </div>
         <button class="btn primary" type="submit">Save item</button>
       </form>
     </div>
@@ -187,11 +201,12 @@
       insertAddon,
       deleteAddon,
     } from "../js/api.js";
-    import { fmtMoney } from "../js/utils.js";
-    import { mountNotifications } from "../js/notifications_ui.js";
-    import {
-      initBranchState,
-      registerBranchSwitcher,
+	    import { fmtMoney } from "../js/utils.js";
+	    import { mountNotifications } from "../js/notifications_ui.js";
+	    import { menuImageUrl, uploadMenuImageFile } from "../js/storage.js";
+	    import {
+	      initBranchState,
+	      registerBranchSwitcher,
       getSelectedBranchId,
       getBranchLabel,
       onBranchChange,
@@ -211,41 +226,102 @@
     const filterCategory = document.getElementById("filterCategory");
     const itemsTbody = document.querySelector("#itemsTable tbody");
     const searchInput = document.getElementById("searchInput");
-    const filterAvailability = document.getElementById("filterAvailability");
-    const itemModal = document.getElementById("itemModal");
-    const categoryModal = document.getElementById("categoryModal");
-    const addonModal = document.getElementById("addonModal");
-    let categories = [];
-    let items = [];
-    let addons = [];
+	    const filterAvailability = document.getElementById("filterAvailability");
+	    const itemModal = document.getElementById("itemModal");
+	    const categoryModal = document.getElementById("categoryModal");
+	    const addonModal = document.getElementById("addonModal");
+	    const itemForm = document.getElementById("itemForm");
+	    const itemImageFile = document.getElementById("itemImageFile");
+	    const itemImagePreview = document.getElementById("itemImagePreview");
+	    const itemImagePreviewImg = document.getElementById("itemImagePreviewImg");
+	    const clearItemImageBtn = document.getElementById("clearItemImage");
+	    let categories = [];
+	    let items = [];
+	    let addons = [];
+	    let editingItemId = null;
+	    let editingItemBranchId = null;
+	    let selectedImageObjectUrl = null;
 
-    document.getElementById("reloadMenu").addEventListener("click", loadData);
-    document.getElementById("refreshAddons").addEventListener("click", loadAddons);
-    document.getElementById("addItemBtn").addEventListener("click", () => toggleModal(itemModal, true));
-    document.getElementById("addCategoryBtn").addEventListener("click", () => toggleModal(categoryModal, true));
-    document.getElementById("addAddonBtn").addEventListener("click", () => toggleModal(addonModal, true));
-    document.querySelectorAll("[data-close]").forEach((btn) => btn.addEventListener("click", () => toggleModal(document.getElementById(btn.dataset.close), false)));
-    searchInput.addEventListener("input", renderItems);
-    filterCategory.addEventListener("change", renderItems);
-    filterAvailability.addEventListener("change", renderItems);
+	    document.getElementById("reloadMenu").addEventListener("click", loadData);
+	    document.getElementById("refreshAddons").addEventListener("click", loadAddons);
+	    document.getElementById("addItemBtn").addEventListener("click", () => openItemModal());
+	    document.getElementById("addCategoryBtn").addEventListener("click", () => toggleModal(categoryModal, true));
+	    document.getElementById("addAddonBtn").addEventListener("click", () => toggleModal(addonModal, true));
+	    document.querySelectorAll("[data-close]").forEach((btn) => btn.addEventListener("click", () => toggleModal(document.getElementById(btn.dataset.close), false)));
+	    searchInput.addEventListener("input", renderItems);
+	    filterCategory.addEventListener("change", renderItems);
+	    filterAvailability.addEventListener("change", renderItems);
 
-    document.getElementById("itemForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-      if (!branchId) return showToast("Select a branch before adding items");
-      const fd = new FormData(e.target);
-      const payload = Object.fromEntries(fd.entries());
-      payload.base_price = Number(payload.base_price || 0);
-      payload.is_sold_out = fd.get("is_sold_out") === "on";
-      payload.branch_id = branchId;
-      const { error } = await insertMenuItem(payload);
-      if (error) return showToast(error.message);
-      showToast("Item added");
-      toggleModal(itemModal, false);
-      e.target.reset();
-      await loadData();
-    });
+	    itemImageFile.addEventListener("change", () => {
+	      const f = itemImageFile.files?.[0];
+	      if (!f) return;
+	      if (selectedImageObjectUrl) URL.revokeObjectURL(selectedImageObjectUrl);
+	      selectedImageObjectUrl = URL.createObjectURL(f);
+	      itemImagePreviewImg.src = selectedImageObjectUrl;
+	      itemImagePreview.style.display = "flex";
+	    });
+
+	    clearItemImageBtn.addEventListener("click", () => {
+	      itemForm.querySelector("[name=image_url]").value = "";
+	      itemImageFile.value = "";
+	      if (selectedImageObjectUrl) URL.revokeObjectURL(selectedImageObjectUrl);
+	      selectedImageObjectUrl = null;
+	      itemImagePreviewImg.removeAttribute("src");
+	      itemImagePreview.style.display = "none";
+	    });
+
+	    itemForm.addEventListener("submit", async (e) => {
+	      e.preventDefault();
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      if (!branchId && !editingItemId) return showToast("Select a branch before adding items");
+	      const fd = new FormData(e.target);
+	      const payload = Object.fromEntries(fd.entries());
+	      const id = String(payload.id || "").trim() || null;
+	      delete payload.id;
+	      payload.base_price = Number(payload.base_price || 0);
+	      payload.is_sold_out = fd.get("is_sold_out") === "on";
+
+	      const file = itemImageFile.files?.[0] || null;
+	      const urlField = String(payload.image_url || "").trim();
+	      payload.image_url = urlField ? urlField : null;
+
+	      const isEdit = Boolean(id);
+	      let itemId = id;
+	      const uploadBranchId = isEdit ? editingItemBranchId : branchId;
+	      if (!uploadBranchId) return showToast("Select a branch");
+
+	      // Insert first (to get an id) then upload (if any) and update image_url with the storage path.
+	      if (!isEdit) {
+	        payload.branch_id = branchId;
+	        const created = await insertMenuItem(payload);
+	        if (created.error) return showToast(created.error.message);
+	        itemId = created.data?.id;
+	        showToast("Item added");
+	      } else {
+	        delete payload.branch_id;
+	        const res = await updateMenuItem(itemId, payload);
+	        if (res.error) return showToast(res.error.message);
+	        showToast("Item updated");
+	      }
+
+	      if (file) {
+	        const up = await uploadMenuImageFile({ file, branchId: uploadBranchId, itemId });
+	        if (up.error) return showToast(up.error.message);
+	        const u = await updateMenuItem(itemId, { image_url: up.data.path });
+	        if (u.error) return showToast(u.error.message);
+	      }
+
+	      toggleModal(itemModal, false);
+	      e.target.reset();
+	      editingItemId = null;
+	      editingItemBranchId = null;
+	      itemImageFile.value = "";
+	      if (selectedImageObjectUrl) URL.revokeObjectURL(selectedImageObjectUrl);
+	      selectedImageObjectUrl = null;
+	      itemImagePreview.style.display = "none";
+	      await loadData();
+	    });
 
     document.getElementById("categoryForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -282,11 +358,46 @@
       await loadAddons();
     });
 
-    function toggleModal(el, show) {
-      el.classList[show ? "add" : "remove"]("show");
-    }
+	    function toggleModal(el, show) {
+	      el.classList[show ? "add" : "remove"]("show");
+	    }
 
-    loadData();
+	    function openItemModal(item = null) {
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      if (!branchId && !item?.branch_id) return showToast("Select a branch first");
+
+	      itemForm.reset();
+	      editingItemId = item?.id || null;
+	      editingItemBranchId = item?.branch_id || branchId;
+	      itemForm.querySelector("[name=id]").value = editingItemId || "";
+	      document.getElementById("itemModalTitle").textContent = editingItemId ? "Edit item" : "Add item";
+
+	      if (item) {
+	        itemForm.querySelector("[name=name]").value = item.name || "";
+	        itemForm.querySelector("[name=description]").value = item.description || "";
+	        itemForm.querySelector("[name=category_id]").value = item.category_id || "";
+	        itemForm.querySelector("[name=base_price]").value = item.base_price ?? 0;
+	        itemForm.querySelector("[name=is_sold_out]").checked = Boolean(item.is_sold_out);
+	        itemForm.querySelector("[name=image_url]").value = item.image_url || "";
+	      }
+
+	      // Preview existing image (URL or storage path).
+	      const existingUrl = item?.image_url ? menuImageUrl(item.image_url) : "";
+	      if (existingUrl) {
+	        itemImagePreviewImg.src = existingUrl;
+	        itemImagePreview.style.display = "flex";
+	      } else {
+	        itemImagePreview.style.display = "none";
+	      }
+	      itemImageFile.value = "";
+	      if (selectedImageObjectUrl) URL.revokeObjectURL(selectedImageObjectUrl);
+	      selectedImageObjectUrl = null;
+
+	      toggleModal(itemModal, true);
+	    }
+
+	    loadData();
 
     async function loadData() {
       const rawBranch = getSelectedBranchId();
@@ -367,32 +478,36 @@
         itemsTbody.innerHTML = `<tr><td colspan="6" class="muted">No items match</td></tr>`;
         return;
       }
-      itemsTbody.innerHTML = filtered
-        .map((m) => {
-          const catName = categories.find((c) => c.id === m.category_id)?.name || "Uncategorized";
-          const branchChip =
-            rawBranch === "all" ? `<span class="branch-badge">${getBranchLabel(m.branch_id)}</span>` : "";
-          return `
-          <tr>
-            <td>
-              <div class="flex-between" style="gap:8px;">
-                ${m.image_url ? `<img src="${m.image_url}" alt="" style="width:48px; height:48px; object-fit:cover; border-radius:10px;">` : ""}
-                <div>
-                  <div class="font-semibold">${branchChip}${m.name}</div>
-                  <div class="muted text-sm">${m.description || ""}</div>
-                </div>
-              </div>
-            </td>
-            <td>${catName}</td>
+	      itemsTbody.innerHTML = filtered
+	        .map((m) => {
+	          const catName = categories.find((c) => c.id === m.category_id)?.name || "Uncategorized";
+	          const branchChip =
+	            rawBranch === "all" ? `<span class="branch-badge">${getBranchLabel(m.branch_id)}</span>` : "";
+	          const imgUrl = m.image_url ? menuImageUrl(m.image_url) : "";
+	          return `
+	          <tr>
+	            <td>
+	              <div class="flex-between" style="gap:8px;">
+	                ${imgUrl ? `<img src="${imgUrl}" alt="" style="width:48px; height:48px; object-fit:cover; border-radius:10px;">` : ""}
+	                <div>
+	                  <div class="font-semibold">${branchChip}${m.name}</div>
+	                  <div class="muted text-sm">${m.description || ""}</div>
+	                </div>
+	              </div>
+	            </td>
+	            <td>${catName}</td>
             <td>
               <input data-price="${m.id}" type="number" step="0.01" value="${m.base_price}" style="width:100px; border:1px solid var(--color-border); border-radius:8px; padding:4px 6px;">
             </td>
-            <td><button class="chip-btn" data-available="${m.id}">${m.is_sold_out ? "Sold out" : "Available"}</button></td>
-            <td><button class="chip-btn ${m.is_active ? "active" : ""}" data-active="${m.id}">${m.is_active ? "Active" : "Hidden"}</button></td>
-            <td><button class="btn ghost" data-delete="${m.id}">Delete</button></td>
-          </tr>`;
-        })
-        .join("");
+	            <td><button class="chip-btn" data-available="${m.id}">${m.is_sold_out ? "Sold out" : "Available"}</button></td>
+	            <td><button class="chip-btn ${m.is_active ? "active" : ""}" data-active="${m.id}">${m.is_active ? "Active" : "Hidden"}</button></td>
+	            <td style="display:flex; gap:8px; justify-content:flex-end;">
+	              <button class="btn ghost" data-edit="${m.id}">Edit</button>
+	              <button class="btn ghost" data-delete="${m.id}">Delete</button>
+	            </td>
+	          </tr>`;
+	        })
+	        .join("");
 
       itemsTbody.querySelectorAll("[data-price]").forEach((input) =>
         input.addEventListener("change", async () => {
@@ -423,15 +538,24 @@
           loadData();
         })
       );
-      itemsTbody.querySelectorAll("[data-delete]").forEach((btn) =>
-        btn.addEventListener("click", async () => {
-          if (!confirm("Delete this item?")) return;
-          const { error } = await updateMenuItem(btn.dataset.delete, { is_active: false });
-          if (error) return showToast(error.message);
-          showToast("Item hidden");
-          loadData();
-        })
-      );
+	      itemsTbody.querySelectorAll("[data-delete]").forEach((btn) =>
+	        btn.addEventListener("click", async () => {
+	          if (!confirm("Delete this item?")) return;
+	          const { error } = await updateMenuItem(btn.dataset.delete, { is_active: false });
+	          if (error) return showToast(error.message);
+	          showToast("Item hidden");
+	          loadData();
+	        })
+	      );
+
+	      itemsTbody.querySelectorAll("[data-edit]").forEach((btn) =>
+	        btn.addEventListener("click", () => {
+	          const id = btn.dataset.edit;
+	          const item = items.find((i) => i.id === id);
+	          if (!item) return;
+	          openItemModal(item);
+	        })
+	      );
 
       // add-on item select
       const addonSelect = document.getElementById("addonItemSelect");
