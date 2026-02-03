@@ -45,20 +45,25 @@
 	    </main>
 	  </div>
 
-  <div id="modal" class="modal-backdrop">
-    <div class="modal">
-      <header>
-        <div>
-          <div class="font-bold" id="modalTitle">New promo</div>
-          <div class="muted text-sm">Codes are case-insensitive</div>
-        </div>
-        <button class="btn ghost" id="closeModal">✕</button>
-      </header>
-      <form id="promoForm">
-        <label class="label">Code</label>
-        <input class="input" id="code" placeholder="WELCOME10" required />
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-          <div>
+	  <div id="modal" class="modal-backdrop">
+	    <div class="modal">
+	      <header>
+	        <div>
+	          <div class="font-bold" id="modalTitle">New promo</div>
+	          <div class="muted text-sm">Codes are case-insensitive</div>
+	        </div>
+	        <button class="btn ghost" id="closeModal">✕</button>
+	      </header>
+	      <form id="promoForm">
+	        <div id="branchRow" style="display:none; margin-bottom:10px;">
+	          <label class="label">Branch</label>
+	          <select class="input" id="promoBranch"></select>
+	          <div class="muted text-sm" style="margin-top:6px;">Promos are branch-scoped.</div>
+	        </div>
+	        <label class="label">Code</label>
+	        <input class="input" id="code" placeholder="WELCOME10" required />
+	        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+	          <div>
             <label class="label">Type</label>
             <select class="input" id="type">
               <option value="percent">Percent</option>
@@ -83,12 +88,12 @@
   <div id="toast" class="toast"></div>
 
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
-    import { requireAuth, getClient } from "../js/auth.js";
-    import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
-    import { fmtMoney } from "../js/utils.js";
-    import { mountNotifications } from "../js/notifications_ui.js";
-    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
+	    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+	    import { requireAuth, getClient } from "../js/auth.js";
+	    import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
+	    import { fmtMoney } from "../js/utils.js";
+	    import { mountNotifications } from "../js/notifications_ui.js";
+	    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranches, getBranchLabel } from "../js/branches.js";
 
     renderSidebar("promotions.html");
     mountThemeToggle();
@@ -96,18 +101,20 @@
     mountNotifications({ supabase: getClient() });
     await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
     registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
-    onBranchChange(() => {
-      closeModal();
-      load();
-      syncCreateButton();
-    });
+	    onBranchChange(() => {
+	      closeModal();
+	      load();
+	    });
 
-    const tbody = document.querySelector("#promoTable tbody");
-    const modal = document.getElementById("modal");
-    const form = document.getElementById("promoForm");
-    const activeToggle = document.getElementById("isActive");
-    let editingId = null;
-    let active = true;
+	    const tbody = document.querySelector("#promoTable tbody");
+	    const modal = document.getElementById("modal");
+	    const form = document.getElementById("promoForm");
+	    const activeToggle = document.getElementById("isActive");
+	    const branchRow = document.getElementById("branchRow");
+	    const promoBranch = document.getElementById("promoBranch");
+	    let editingId = null;
+	    let active = true;
+	    const isSuper = profile.role === "super_admin";
 
     document.getElementById("newPromo").addEventListener("click", () => openModal());
     document.getElementById("closeModal").addEventListener("click", closeModal);
@@ -118,76 +125,78 @@
       activeToggle.textContent = active ? "Active" : "Inactive";
     });
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-      if (!editingId && !branchId) {
-        showToast("Select a branch before creating a promo");
-        return;
-      }
-      const payload = {
-        code: document.getElementById("code").value.trim(),
-        type: document.getElementById("type").value,
-        value: Number(document.getElementById("value").value || 0),
-        min_subtotal: Number(document.getElementById("minSubtotal").value || 0),
-        expires_at: document.getElementById("expiresAt").value ? new Date(document.getElementById("expiresAt").value).toISOString() : null,
-        is_active: active,
-      };
-      const res = editingId ? await updatePromo(editingId, payload) : await insertPromo({ ...payload, branch_id: branchId });
-      if (res.error) return showToast(res.error.message);
-      showToast(editingId ? "Promo updated" : "Promo created");
-      closeModal();
-      load();
-    });
+	    form.addEventListener("submit", async (e) => {
+	      e.preventDefault();
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      const selectedBranch = branchId || (isSuper ? promoBranch.value : null);
+	      if (!editingId && !selectedBranch) return showToast("Select a branch before creating a promo");
+	      const payload = {
+	        code: document.getElementById("code").value.trim(),
+	        type: document.getElementById("type").value,
+	        value: Number(document.getElementById("value").value || 0),
+	        min_subtotal: Number(document.getElementById("minSubtotal").value || 0),
+	        expires_at: document.getElementById("expiresAt").value ? new Date(document.getElementById("expiresAt").value).toISOString() : null,
+	        is_active: active,
+	      };
+	      const res = editingId ? await updatePromo(editingId, payload) : await insertPromo({ ...payload, branch_id: selectedBranch });
+	      if (res.error) return showToast(res.error.message);
+	      showToast(editingId ? "Promo updated" : "Promo created");
+	      closeModal();
+	      load();
+	    });
 
-    syncCreateButton();
-    load();
+	    load();
 
-    async function load() {
-      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const branchId = getSelectedBranchId();
-      const { data, error } = await fetchPromos({ branchId });
-      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
-      const promos = data || [];
-      if (!promos.length) { tbody.innerHTML = `<tr><td colspan="7" class="muted">No promos yet</td></tr>`; return; }
-      tbody.innerHTML = promos.map((p) => `
-        <tr>
-          <td><strong>${p.code}</strong></td>
-          <td>${p.type}</td>
-          <td>${p.type === "percent" ? `${Number(p.value || 0)}%` : fmtMoney(p.value)}</td>
-          <td>${fmtMoney(p.min_subtotal || 0)}</td>
-          <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
-          <td><span class="tag ${p.is_active ? "success" : ""}">${p.is_active ? "Active" : "Off"}</span></td>
-          <td><button class="btn ghost" data-edit="${p.id}">Edit</button></td>
-        </tr>
-      `).join("");
-      tbody.querySelectorAll("[data-edit]").forEach((btn) =>
-        btn.addEventListener("click", () => openModal(promos.find((p) => p.id === btn.dataset.edit)))
-      );
-    }
+	    async function load() {
+	      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+	      const branchId = getSelectedBranchId();
+	      const { data, error } = await fetchPromos({ branchId });
+	      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`; return; }
+	      const promos = data || [];
+	      if (!promos.length) { tbody.innerHTML = `<tr><td colspan="7" class="muted">No promos yet</td></tr>`; return; }
+	      const showBranch = isSuper && branchId === "all";
+	      tbody.innerHTML = promos.map((p) => `
+	        <tr>
+	          <td><strong>${p.code}</strong>${showBranch ? ` <span class="muted text-sm">(${getBranchLabel(p.branch_id)})</span>` : ""}</td>
+	          <td>${p.type}</td>
+	          <td>${p.type === "percent" ? `${Number(p.value || 0)}%` : fmtMoney(p.value)}</td>
+	          <td>${fmtMoney(p.min_subtotal || 0)}</td>
+	          <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
+	          <td><span class="tag ${p.is_active ? "success" : ""}">${p.is_active ? "Active" : "Off"}</span></td>
+	          <td><button class="btn ghost" data-edit="${p.id}">Edit</button></td>
+	        </tr>
+	      `).join("");
+	      tbody.querySelectorAll("[data-edit]").forEach((btn) =>
+	        btn.addEventListener("click", () => openModal(promos.find((p) => p.id === btn.dataset.edit)))
+	      );
+	    }
 
-    function syncCreateButton() {
-      const rawBranch = getSelectedBranchId();
-      const isAll = rawBranch === "all";
-      const btn = document.getElementById("newPromo");
-      btn.disabled = isAll;
-      btn.title = isAll ? "Select a branch to create promos" : "";
-    }
-
-    function openModal(promo) {
-      editingId = promo?.id || null;
-      document.getElementById("modalTitle").textContent = editingId ? "Edit promo" : "New promo";
-      document.getElementById("code").value = promo?.code || "";
-      document.getElementById("type").value = promo?.type || "percent";
-      document.getElementById("value").value = promo?.value ?? "";
-      document.getElementById("minSubtotal").value = promo?.min_subtotal ?? "";
-      document.getElementById("expiresAt").value = promo?.expires_at ? new Date(promo.expires_at).toISOString().slice(0, 10) : "";
-      active = promo?.is_active ?? true;
-      activeToggle.classList.toggle("active", active);
-      activeToggle.textContent = active ? "Active" : "Inactive";
-      modal.classList.add("show");
-    }
+	    function openModal(promo) {
+	      editingId = promo?.id || null;
+	      document.getElementById("modalTitle").textContent = editingId ? "Edit promo" : "New promo";
+	      const rawBranch = getSelectedBranchId();
+	      const isAll = rawBranch === "all";
+	      if (isSuper && isAll && !editingId) {
+	        branchRow.style.display = "";
+	        const branches = getBranches() || [];
+	        promoBranch.innerHTML =
+	          `<option value="">Select branch</option>` +
+	          branches.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+	      } else {
+	        branchRow.style.display = "none";
+	        promoBranch.innerHTML = "";
+	      }
+	      document.getElementById("code").value = promo?.code || "";
+	      document.getElementById("type").value = promo?.type || "percent";
+	      document.getElementById("value").value = promo?.value ?? "";
+	      document.getElementById("minSubtotal").value = promo?.min_subtotal ?? "";
+	      document.getElementById("expiresAt").value = promo?.expires_at ? new Date(promo.expires_at).toISOString().slice(0, 10) : "";
+	      active = promo?.is_active ?? true;
+	      activeToggle.classList.toggle("active", active);
+	      activeToggle.textContent = active ? "Active" : "Inactive";
+	      modal.classList.add("show");
+	    }
 
     function closeModal() {
       modal.classList.remove("show");

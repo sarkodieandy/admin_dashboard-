@@ -221,7 +221,7 @@
     const { profile } = await requireAuth();
     mountNotifications({ supabase });
     await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: false });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
 
     const stateKey = "adminSettingsLocal";
     const state = JSON.parse(localStorage.getItem(stateKey) || "{}");

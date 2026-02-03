@@ -70,7 +70,7 @@
     const { profile } = await requireAuth();
     mountNotifications({ supabase: getClient() });
     await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: false });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
     onBranchChange(load);
     load();
     document.getElementById("saveBtn").addEventListener("click", save);

@@ -116,6 +116,11 @@
       <header><div class="font-semibold" id="itemModalTitle">Add item</div><button class="btn ghost" data-close="itemModal">✕</button></header>
 	      <form id="itemForm">
 	        <input type="hidden" name="id" />
+	        <div id="itemBranchRow" style="display:none;">
+	          <div class="label">Branch</div>
+	          <select class="input" id="itemBranchSelect"></select>
+	          <div class="muted text-sm" style="margin-top:6px;">Pick which branch this item belongs to.</div>
+	        </div>
 	        <div>
 	          <div class="label">Name</div>
 	          <input class="input" name="name" required />
@@ -161,14 +166,19 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="categoryModal">
-    <div class="modal">
-      <header><div class="font-semibold">Add category</div><button class="btn ghost" data-close="categoryModal">✕</button></header>
-      <form id="categoryForm">
-        <div class="label">Name</div>
-        <input class="input" name="name" required />
-        <button class="btn primary" type="submit">Save category</button>
-      </form>
+	  <div class="modal-backdrop" id="categoryModal">
+	    <div class="modal">
+	      <header><div class="font-semibold">Add category</div><button class="btn ghost" data-close="categoryModal">✕</button></header>
+	      <form id="categoryForm">
+	        <div id="categoryBranchRow" style="display:none; margin-bottom:10px;">
+	          <div class="label">Branch</div>
+	          <select class="input" id="categoryBranchSelect"></select>
+	          <div class="muted text-sm" style="margin-top:6px;">Pick which branch this category belongs to.</div>
+	        </div>
+	        <div class="label">Name</div>
+	        <input class="input" name="name" required />
+	        <button class="btn primary" type="submit">Save category</button>
+	      </form>
     </div>
   </div>
 
@@ -207,10 +217,11 @@
 	    import {
 	      initBranchState,
 	      registerBranchSwitcher,
-      getSelectedBranchId,
-      getBranchLabel,
-      onBranchChange,
-    } from "../js/branches.js";
+	      getSelectedBranchId,
+	      getBranchLabel,
+	      onBranchChange,
+	      getBranches,
+	    } from "../js/branches.js";
 
     renderSidebar("menu.html");
     mountThemeToggle();
@@ -235,17 +246,22 @@
 	    const itemImagePreview = document.getElementById("itemImagePreview");
 	    const itemImagePreviewImg = document.getElementById("itemImagePreviewImg");
 	    const clearItemImageBtn = document.getElementById("clearItemImage");
+	    const itemBranchRow = document.getElementById("itemBranchRow");
+	    const itemBranchSelect = document.getElementById("itemBranchSelect");
+	    const categoryBranchRow = document.getElementById("categoryBranchRow");
+	    const categoryBranchSelect = document.getElementById("categoryBranchSelect");
 	    let categories = [];
 	    let items = [];
 	    let addons = [];
 	    let editingItemId = null;
 	    let editingItemBranchId = null;
 	    let selectedImageObjectUrl = null;
+	    const isSuper = profile.role === "super_admin";
 
 	    document.getElementById("reloadMenu").addEventListener("click", loadData);
 	    document.getElementById("refreshAddons").addEventListener("click", loadAddons);
 	    document.getElementById("addItemBtn").addEventListener("click", () => openItemModal());
-	    document.getElementById("addCategoryBtn").addEventListener("click", () => toggleModal(categoryModal, true));
+	    document.getElementById("addCategoryBtn").addEventListener("click", () => openCategoryModal());
 	    document.getElementById("addAddonBtn").addEventListener("click", () => toggleModal(addonModal, true));
 	    document.querySelectorAll("[data-close]").forEach((btn) => btn.addEventListener("click", () => toggleModal(document.getElementById(btn.dataset.close), false)));
 	    searchInput.addEventListener("input", renderItems);
@@ -288,12 +304,14 @@
 
 	      const isEdit = Boolean(id);
 	      let itemId = id;
-	      const uploadBranchId = isEdit ? editingItemBranchId : branchId;
+	      const uploadBranchId = isEdit
+	        ? editingItemBranchId
+	        : (branchId || (isSuper ? itemBranchSelect.value : null));
 	      if (!uploadBranchId) return showToast("Select a branch");
 
 	      // Insert first (to get an id) then upload (if any) and update image_url with the storage path.
 	      if (!isEdit) {
-	        payload.branch_id = branchId;
+	        payload.branch_id = uploadBranchId;
 	        const created = await insertMenuItem(payload);
 	        if (created.error) return showToast(created.error.message);
 	        itemId = created.data?.id;
@@ -317,41 +335,49 @@
 	      editingItemId = null;
 	      editingItemBranchId = null;
 	      itemImageFile.value = "";
+	      itemBranchRow.style.display = "none";
 	      if (selectedImageObjectUrl) URL.revokeObjectURL(selectedImageObjectUrl);
 	      selectedImageObjectUrl = null;
 	      itemImagePreview.style.display = "none";
 	      await loadData();
 	    });
 
-    document.getElementById("categoryForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-      if (!branchId) return showToast("Select a branch before adding categories");
-      const name = new FormData(e.target).get("name");
-      const nextOrder = categories.length ? Math.max(...categories.map((c) => c.sort_order || 0)) + 1 : 0;
-      const { error } = await insertCategory({ name, sort_order: nextOrder, branch_id: branchId });
-      if (error) return showToast(error.message);
-      showToast("Category added");
-      toggleModal(categoryModal, false);
-      e.target.reset();
-      await loadData();
-    });
+	    document.getElementById("categoryForm").addEventListener("submit", async (e) => {
+	      e.preventDefault();
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      const selected = branchId || (isSuper ? categoryBranchSelect.value : null);
+	      if (!selected) return showToast("Select a branch before adding categories");
+	      const name = new FormData(e.target).get("name");
+	      const nextOrder = categories.length ? Math.max(...categories.map((c) => c.sort_order || 0)) + 1 : 0;
+	      const { error } = await insertCategory({ name, sort_order: nextOrder, branch_id: selected });
+	      if (error) return showToast(error.message);
+	      showToast("Category added");
+	      toggleModal(categoryModal, false);
+	      e.target.reset();
+	      categoryBranchRow.style.display = "none";
+	      await loadData();
+	    });
 
-    document.getElementById("addonForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-      if (!branchId) return showToast("Select a branch before adding add-ons");
-      const fd = new FormData(e.target);
-      const payload = {
-        name: fd.get("name"),
-        price: Number(fd.get("price") || 0),
-        item_id: fd.get("item_id"),
-        branch_id: branchId,
-      };
-      const { error } = await insertAddon(payload);
-      if (error) return showToast(error.message);
+	    document.getElementById("addonForm").addEventListener("submit", async (e) => {
+	      e.preventDefault();
+	      const rawBranch = getSelectedBranchId();
+	      const fd = new FormData(e.target);
+	      const itemId = fd.get("item_id");
+	      const item = items.find((i) => i.id === itemId);
+	      const branchId =
+	        rawBranch && rawBranch !== "all"
+	          ? rawBranch
+	          : (item?.branch_id || null);
+	      if (!branchId) return showToast("Select a branch (or choose an item)");
+	      const payload = {
+	        name: fd.get("name"),
+	        price: Number(fd.get("price") || 0),
+	        item_id: itemId,
+	        branch_id: branchId,
+	      };
+	      const { error } = await insertAddon(payload);
+	      if (error) return showToast(error.message);
       showToast("Add-on saved");
       toggleModal(addonModal, false);
       e.target.reset();
@@ -362,6 +388,26 @@
 	      el.classList[show ? "add" : "remove"]("show");
 	    }
 
+	    function fillBranchSelect(selectEl, { placeholder = null, selected = null } = {}) {
+	      const branches = (getBranches() || []).slice();
+	      const opts = [];
+	      if (placeholder) opts.push(`<option value="">${placeholder}</option>`);
+	      opts.push(...branches.map((b) => `<option value="${b.id}">${b.name}</option>`));
+	      selectEl.innerHTML = opts.join("");
+	      if (selected) selectEl.value = selected;
+	    }
+
+	    function categoriesForBranch(branchId) {
+	      if (!branchId) return [];
+	      return categories.filter((c) => c.branch_id === branchId);
+	    }
+
+	    function refreshItemCategorySelect(branchId) {
+	      const select = document.getElementById("itemCatSelect");
+	      const list = branchId ? categoriesForBranch(branchId) : [];
+	      select.innerHTML = list.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+	    }
+
 	    function openItemModal(item = null) {
 	      const rawBranch = getSelectedBranchId();
 	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
@@ -370,6 +416,17 @@
 	      itemForm.reset();
 	      editingItemId = item?.id || null;
 	      editingItemBranchId = item?.branch_id || branchId;
+	      const isAll = rawBranch === "all";
+	      if (isSuper && isAll && !editingItemId) {
+	        itemBranchRow.style.display = "";
+	        fillBranchSelect(itemBranchSelect, { placeholder: "Select branch", selected: editingItemBranchId || "" });
+	        refreshItemCategorySelect(itemBranchSelect.value);
+	        itemBranchSelect.onchange = () => refreshItemCategorySelect(itemBranchSelect.value);
+	      } else {
+	        itemBranchRow.style.display = "none";
+	        itemBranchSelect.onchange = null;
+	        refreshItemCategorySelect(editingItemBranchId);
+	      }
 	      itemForm.querySelector("[name=id]").value = editingItemId || "";
 	      document.getElementById("itemModalTitle").textContent = editingItemId ? "Edit item" : "Add item";
 
@@ -397,6 +454,23 @@
 	      toggleModal(itemModal, true);
 	    }
 
+	    function openCategoryModal() {
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      const isAll = rawBranch === "all";
+	      if (!branchId && !isSuper) return showToast("Select a branch first");
+
+	      const form = document.getElementById("categoryForm");
+	      form.reset();
+	      if (isSuper && isAll) {
+	        categoryBranchRow.style.display = "";
+	        fillBranchSelect(categoryBranchSelect, { placeholder: "Select branch" });
+	      } else {
+	        categoryBranchRow.style.display = "none";
+	      }
+	      toggleModal(categoryModal, true);
+	    }
+
 	    loadData();
 
     async function loadData() {
@@ -414,8 +488,8 @@
       loadAddons();
     }
 
-    function renderCategories() {
-      filterCategory.innerHTML = `<option value=\"\">All categories</option>` + categories.map(c=>`<option value=\"${c.id}\">${c.name}</option>`).join("");
+	    function renderCategories() {
+	      filterCategory.innerHTML = `<option value=\"\">All categories</option>` + categories.map(c=>`<option value=\"${c.id}\">${c.name}</option>`).join("");
       const counts = items.reduce((acc, it) => {
         acc[it.category_id] = (acc[it.category_id] || 0) + 1;
         return acc;
@@ -458,10 +532,16 @@
           showToast("Order saved");
           loadData();
         })
-      );
-      // fill modal select
-      document.getElementById("itemCatSelect").innerHTML = categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
-    }
+	      );
+	      // fill modal select
+	      const rawBranch = getSelectedBranchId();
+	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      if (branchId) {
+	        refreshItemCategorySelect(branchId);
+	      } else {
+	        document.getElementById("itemCatSelect").innerHTML = "";
+	      }
+	    }
 
     function renderItems() {
       const rawBranch = getSelectedBranchId();
