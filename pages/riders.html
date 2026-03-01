@@ -112,7 +112,7 @@
         <div class="riders-hero">
           <div>
             <div class="font-semibold" style="font-size:1.3rem;">Manage rider dispatch</div>
-            <div class="muted text-sm">Create rider profiles here so admins can assign them to orders and surface their info in tracking.</div>
+            <div class="muted text-sm">Platform admins and restaurant owners can create rider login accounts here, then teams can assign and manage them in dispatch.</div>
           </div>
           <div class="riders-hero__actions">
             <button class="btn ghost" id="openRiderHint">Need help?</button>
@@ -174,6 +174,15 @@
       <input class="input" id="riderName" required />
       <label class="label">Phone</label>
       <input class="input" id="riderPhone" />
+      <div id="riderAuthFields">
+        <label class="label">Login email</label>
+        <input class="input" id="riderEmail" type="email" autocomplete="username" />
+        <label class="label">Temporary password</label>
+        <input class="input" id="riderPassword" type="password" autocomplete="new-password" />
+        <div class="muted text-sm" style="margin-bottom:12px;">
+          Restaurant owners and platform admins create rider login credentials here. The rider will use these to sign into the rider app.
+        </div>
+      </div>
       <label class="label">Vehicle type</label>
       <select class="input" id="riderVehicle">
         <option value="">Select vehicle</option>
@@ -195,7 +204,7 @@
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime } from "../js/utils.js";
-    import { fetchRiders, updateRider, insertRider } from "../js/api.js";
+    import { fetchRiders, updateRider, createRiderAccount } from "../js/api.js";
     import { mountNotifications } from "../js/notifications_ui.js";
     import { initBranchState, registerBranchSwitcher, getSelectedBranchId, onBranchChange } from "../js/branches.js";
 
@@ -204,17 +213,21 @@
     const { profile } = await requireAuth();
     const supabase = getClient();
     mountNotifications({ supabase });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
     registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
-      allowAll: profile.role === "super_admin",
+      allowAll: ["super_admin", "platform_admin"].includes(profile.role),
     });
     onBranchChange(() => load());
+    const canCreateRiderAccount = ["restaurant_owner", "super_admin", "platform_admin"].includes(profile.role);
 
     const tbody = document.querySelector("#ridersTable tbody");
     const riderModal = document.getElementById("riderModal");
     const riderForm = document.getElementById("riderForm");
     const riderName = document.getElementById("riderName");
     const riderPhone = document.getElementById("riderPhone");
+    const riderEmail = document.getElementById("riderEmail");
+    const riderPassword = document.getElementById("riderPassword");
+    const riderAuthFields = document.getElementById("riderAuthFields");
     const riderVehicle = document.getElementById("riderVehicle");
     const riderActive = document.getElementById("riderActive");
     const riderNote = document.getElementById("riderNote");
@@ -226,24 +239,43 @@
     let riderMap = new Map();
     let editingRider = null;
 
+    function syncRiderAuthFields() {
+      const creating = !editingRider;
+      riderAuthFields.style.display = creating ? "" : "none";
+      riderEmail.required = creating && canCreateRiderAccount;
+      riderPassword.required = creating && canCreateRiderAccount;
+      if (!creating) {
+        riderEmail.value = "";
+        riderPassword.value = "";
+      }
+    }
+
     function openRiderModal(title, subtitle, rider) {
+      if (!rider && !canCreateRiderAccount) {
+        showToast("Only restaurant owners and platform admins can create rider login accounts.");
+        return;
+      }
       editingRider = rider || null;
       riderModalTitle.textContent = title;
       riderSubtitle.textContent = subtitle;
       riderName.value = rider?.name ?? "";
       riderPhone.value = rider?.phone ?? "";
+      riderEmail.value = "";
+      riderPassword.value = "";
       riderVehicle.value = rider?.vehicle_type ?? "";
       riderActive.checked = rider?.is_active ?? true;
       riderNote.value = rider?.default_delivery_note ?? "";
+      syncRiderAuthFields();
       riderModal.classList.add("show");
     }
 
     document.getElementById("refreshRiders").addEventListener("click", load);
+    document.getElementById("addRiderBtn").disabled = !canCreateRiderAccount;
     document.getElementById("addRiderBtn").addEventListener("click", () =>
-      openRiderModal("Add rider", "Create a new rider profile", null),
+      openRiderModal("Add rider", "Create a rider login account and dispatch profile", null),
     );
     document.getElementById("openRiderHint").addEventListener("click", () => {
-      showToast("Riders are stored in the `riders` table. Add them here so tracking shows their details.");
+      showToast("Restaurant owners and platform admins create rider login accounts here. Existing linked riders can still be edited for dispatch details.");
     });
     document
       .getElementById("closeRiderModal")
@@ -275,12 +307,31 @@
         }
         showToast("Rider saved");
       } else {
-        const { error } = await insertRider({ ...payload, branch_id: branchId });
+        if (!canCreateRiderAccount) {
+          showToast("Only restaurant owners and platform admins can create rider login accounts.");
+          return;
+        }
+        const email = riderEmail.value.trim().toLowerCase();
+        const password = riderPassword.value;
+        if (!email) {
+          showToast("Enter a rider login email");
+          return;
+        }
+        if (password.length < 8) {
+          showToast("Password must be at least 8 characters");
+          return;
+        }
+        const { error } = await createRiderAccount({
+          ...payload,
+          branch_id: branchId,
+          email,
+          password,
+        });
         if (error) {
           showToast(error.message);
           return;
         }
-        showToast("Rider created");
+        showToast("Rider account created");
       }
       riderModal.classList.remove("show");
       await load();
@@ -306,9 +357,9 @@
               <div class="flex-between" style="gap:12px;">
                 <div>
                   <div class="font-semibold">No riders yet</div>
-                  <div class="muted text-sm">Create riders so they appear in order tracking.</div>
+                  <div class="muted text-sm">${canCreateRiderAccount ? "Create rider login accounts so they can sign in and appear in order tracking." : "No riders are linked yet. Restaurant owners or platform admins create rider login accounts from this page."}</div>
                 </div>
-                <button class="btn primary" id="emptyAdd">Add rider</button>
+                ${canCreateRiderAccount ? '<button class="btn primary" id="emptyAdd">Add rider</button>' : ""}
               </div>
             </td>
           </tr>`;
@@ -330,6 +381,7 @@
               <td>
                 <div class="font-semibold">${escapeHtml(r.name || "Rider")}</div>
                 <div class="muted text-xs">Created ${fmtDateTime(r.created_at || "")}</div>
+                <div class="muted text-xs">${r.user_id ? "App login enabled" : "No rider app login linked"}</div>
               </td>
               <td>${escapeHtml(r.phone || "—")}</td>
               <td>${escapeHtml(r.vehicle_type || "Unspecified")}</td>

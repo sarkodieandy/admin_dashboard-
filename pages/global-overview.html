@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Overview • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Global Overview</div>
+          <div class="muted" style="font-size: var(--text-sm)">Marketplace performance across all restaurants</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="exportBtn" type="button" title="Export CSV" aria-label="Export CSV">⤓ CSV</button>
+          <button class="btn ghost" id="refreshBtn" type="button" title="Refresh" aria-label="Refresh">⟳</button>
+        </div>
+      </div>
+
+      <div class="page page-enter">
+        <div class="card-grid">
+          <div class="kpi-card">
+            <div class="muted text-sm">Restaurants</div>
+            <div id="kpiRestaurants" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+            <div class="muted text-xs" id="kpiRestaurantsActive">— active</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Orders (7 days)</div>
+            <div id="kpiOrders" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+            <div class="muted text-xs">All restaurants</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Gross (7 days)</div>
+            <div id="kpiGross" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+            <div class="muted text-xs">Before commission</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Platform Earnings (7 days)</div>
+            <div id="kpiEarnings" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+            <div class="muted text-xs">Commission collected</div>
+          </div>
+        </div>
+
+        <div class="layout-shell" style="margin-top: var(--space-4); gap: var(--space-4); align-items: flex-start;">
+          <div class="card" style="flex: 1; min-height: 320px;">
+            <div class="flex-between" style="margin-bottom: var(--space-3);">
+              <div>
+                <div class="font-bold">Revenue (last 7 days)</div>
+                <div class="muted text-sm">Gross vs Platform Earnings</div>
+              </div>
+            </div>
+            <canvas id="revenueChart" height="220"></canvas>
+          </div>
+          <div class="card" style="width: 420px;">
+            <div class="flex-between" style="margin-bottom: var(--space-3);">
+              <div>
+                <div class="font-bold">Top 5 Restaurants</div>
+                <div class="muted text-sm">By gross revenue (7 days)</div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Restaurant</th>
+                    <th>Orders</th>
+                    <th>Gross</th>
+                  </tr>
+                </thead>
+                <tbody id="topRestaurantsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchRestaurants, fetchOrderFinancials } from "../js/api.js";
+    import { fmtMoney, debug } from "../js/utils.js";
+
+    renderSidebar("global-overview.html");
+    mountThemeToggle();
+    const session = await requireAuth();
+    mountStatusBanner();
+
+    if (!["platform_admin", "super_admin"].includes(session.profile.role)) {
+      showToast("Access denied: platform admins only");
+      window.location.href = "dashboard.html";
+      await new Promise(() => {});
+    }
+
+    const refreshBtn = document.getElementById("refreshBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const kpiRestaurants = document.getElementById("kpiRestaurants");
+    const kpiRestaurantsActive = document.getElementById("kpiRestaurantsActive");
+    const kpiOrders = document.getElementById("kpiOrders");
+    const kpiGross = document.getElementById("kpiGross");
+    const kpiEarnings = document.getElementById("kpiEarnings");
+    const topBody = document.getElementById("topRestaurantsBody");
+    const ctx = document.getElementById("revenueChart");
+
+    let chart;
+    let lastFinancials = [];
+    let lastRestaurants = [];
+    refreshBtn.addEventListener("click", () => load());
+    exportBtn.addEventListener("click", () => exportCsv());
+    load();
+
+    async function load() {
+      kpiRestaurants.textContent = "…";
+      kpiRestaurantsActive.textContent = "";
+      kpiOrders.textContent = "…";
+      kpiGross.textContent = "…";
+      kpiEarnings.textContent = "…";
+      topBody.innerHTML = `<tr><td colspan="3"><div class="skeleton" style="height:40px"></div></td></tr>`;
+
+      const today = new Date();
+      const start = new Date();
+      start.setDate(today.getDate() - 6);
+      const dateFrom = start.toISOString();
+      const dateTo = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+
+      const [restaurantsRes, financialsRes] = await Promise.all([
+        fetchRestaurants({ status: "all", limit: 1000 }),
+        fetchOrderFinancials({ dateFrom, dateTo, limit: 5000 }),
+      ]);
+
+      if (restaurantsRes.error) {
+        showToast(restaurantsRes.error.message || "Failed to load restaurants");
+        return;
+      }
+      if (financialsRes.error) {
+        showToast(financialsRes.error.message || "Failed to load revenue");
+        return;
+      }
+
+      const restaurants = restaurantsRes.data || [];
+      const financials = financialsRes.data || [];
+      lastRestaurants = restaurants;
+      lastFinancials = financials;
+
+      const totalRestaurants = restaurants.length;
+      const activeRestaurants = restaurants.filter((r) => r.status === "active" && r.is_active !== false).length;
+      kpiRestaurants.textContent = totalRestaurants.toString();
+      kpiRestaurantsActive.textContent = `${activeRestaurants} active`;
+
+      const totalOrders = financials.length;
+      const gross = sum(financials.map((r) => Number(r.gross_total || 0)));
+      const fees = sum(financials.map((r) => Number(r.platform_fee || 0)));
+
+      kpiOrders.textContent = totalOrders.toString();
+      kpiGross.textContent = fmtMoney(gross);
+      kpiEarnings.textContent = fmtMoney(fees);
+
+      renderTop(financials, restaurants);
+      renderChart(financials, start, today);
+    }
+
+    function renderTop(financials, restaurants) {
+      const byRestaurant = new Map();
+      for (const row of financials) {
+        const rid = row.restaurant_id;
+        if (!rid) continue;
+        const current = byRestaurant.get(rid) || { gross: 0, orders: 0 };
+        current.gross += Number(row.gross_total || 0);
+        current.orders += 1;
+        byRestaurant.set(rid, current);
+      }
+
+      const top = Array.from(byRestaurant.entries())
+        .map(([id, stats]) => ({ id, ...stats }))
+        .sort((a, b) => b.gross - a.gross)
+        .slice(0, 5);
+
+      if (!top.length) {
+        topBody.innerHTML = `<tr class="table-empty"><td colspan="3" class="muted">No data for this period.</td></tr>`;
+        return;
+      }
+
+      const nameMap = new Map(restaurants.map((r) => [r.id, r.name || r.slug || r.id]));
+      topBody.innerHTML = top
+        .map((row) => {
+          const name = nameMap.get(row.id) || "Restaurant";
+          return `
+            <tr>
+              <td>${escapeHtml(name)}</td>
+              <td>${row.orders}</td>
+              <td>${fmtMoney(row.gross)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    function renderChart(financials, startDate, today) {
+      const labels = [];
+      const grossSeries = [];
+      const feeSeries = [];
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startDate);
+        d.setDate(startDate.getDate() + i);
+        labels.push(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+        const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+        const gross = financials
+          .filter((row) => {
+            const ts = new Date(row.created_at || row.inserted_at || row.updated_at || row.date || row.time);
+            return ts >= dayStart && ts <= dayEnd;
+          })
+          .reduce((sum, row) => sum + Number(row.gross_total || 0), 0);
+        const fee = financials
+          .filter((row) => {
+            const ts = new Date(row.created_at || row.inserted_at || row.updated_at || row.date || row.time);
+            return ts >= dayStart && ts <= dayEnd;
+          })
+          .reduce((sum, row) => sum + Number(row.platform_fee || 0), 0);
+        grossSeries.push(gross);
+        feeSeries.push(fee);
+      }
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Gross",
+              data: grossSeries,
+              borderColor: "#60a5fa",
+              backgroundColor: "rgba(96,165,250,0.18)",
+              tension: 0.3,
+              fill: true,
+            },
+            {
+              label: "Platform Earnings",
+              data: feeSeries,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245,158,11,0.18)",
+              tension: 0.3,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true },
+            tooltip: { mode: "index", intersect: false },
+          },
+          interaction: { mode: "index", intersect: false },
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: (v) => fmtMoney(Number(v)) } },
+          },
+        },
+      });
+    }
+
+    function exportCsv() {
+      if (!lastFinancials.length) {
+        showToast("No data to export");
+        return;
+      }
+      const nameMap = new Map(lastRestaurants.map((r) => [r.id, r.name || r.slug || r.id]));
+      const rows = [
+        ["date", "restaurant", "order_id", "gross_total", "platform_fee", "restaurant_payout"],
+        ...lastFinancials.map((row) => [
+          (row.created_at || row.inserted_at || "").toString(),
+          nameMap.get(row.restaurant_id) || row.restaurant_id || "",
+          row.order_id || "",
+          row.gross_total,
+          row.platform_fee,
+          row.restaurant_payout,
+        ]),
+      ];
+      const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `platform-financials-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(value) {
+      const s = String(value ?? "");
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replaceAll('"', '""') + '"';
+      }
+      return s;
+    }
+
+    function sum(arr) {
+      return arr.reduce((s, v) => s + (Number(v) || 0), 0);
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

@@ -70,7 +70,7 @@
   <div id="toast" class="toast"></div>
 
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fmtDateTime, fmtMoney, debounce } from "../js/utils.js";
     import { fetchCustomers, fetchOrdersByUsers, fetchAddressesForUser } from "../js/api.js";
@@ -80,9 +80,10 @@
     renderSidebar("customers.html");
     mountThemeToggle();
     const { profile } = await requireAuth();
+    mountStatusBanner();
     mountNotifications({ supabase: getClient() });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(profile.role) });
     onBranchChange(load);
 
     const tbody = document.querySelector("#custTable tbody");

@@ -17,10 +17,9 @@
       place-items: center;
       padding: 22px;
       background:
-        radial-gradient(1200px 700px at 15% 15%, rgba(59,130,246,0.26), transparent 55%),
-        radial-gradient(980px 640px at 85% 35%, rgba(249,115,22,0.22), transparent 58%),
-        radial-gradient(820px 520px at 50% 90%, rgba(16,185,129,0.14), transparent 62%),
-        #070a10;
+        linear-gradient(135deg, rgba(5, 10, 20, 0.82), rgba(5, 10, 20, 0.62)),
+        radial-gradient(900px 520px at 16% 20%, rgba(255,255,255,0.08), transparent 60%),
+        url("https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat fixed;
     }
 
     .login-frame {
@@ -32,8 +31,8 @@
       box-shadow: 0 28px 90px rgba(2, 6, 23, 0.65);
       display: grid;
       grid-template-columns: 0.44fr 0.56fr;
-      background: rgba(15, 23, 42, 0.45);
-      backdrop-filter: blur(14px);
+      background: rgba(7, 11, 19, 0.50);
+      backdrop-filter: blur(16px);
     }
 
     .login-panel {
@@ -235,26 +234,23 @@
       position: relative;
       overflow: hidden;
       background:
-        radial-gradient(1200px 700px at 65% 10%, rgba(147,197,253,0.42), transparent 55%),
-        radial-gradient(900px 600px at 90% 80%, rgba(251,146,60,0.28), transparent 55%),
-        linear-gradient(180deg, rgba(30, 41, 59, 0.22), rgba(2, 6, 23, 0.25));
+        linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.55)),
+        url("https://images.unsplash.com/photo-1498579150354-977475b7ea0b?auto=format&fit=crop&w=1600&q=80") center/cover no-repeat;
+      filter: saturate(1.05);
     }
 
     .login-visual::before {
       content: "";
       position: absolute;
       inset: 0;
-      background: url("../assets/admin-illustration.svg") no-repeat center bottom / cover;
-      opacity: 0.95;
-      transform: scale(1.02);
-      pointer-events: none;
+      backdrop-filter: blur(2px);
     }
 
     .login-visual::after {
       content: "";
       position: absolute;
       inset: 0;
-      background: radial-gradient(1000px 600px at 50% 10%, rgba(255,255,255,0.10), transparent 55%);
+      background: radial-gradient(700px 480px at 60% 20%, rgba(255,255,255,0.12), transparent 60%);
       pointer-events: none;
     }
 
@@ -296,10 +292,10 @@
         </div>
 
         <div class="role-picker" id="rolePicker">
-          <button class="role-btn" type="button" data-role="staff">
+          <button class="role-btn active" type="button" data-role="staff">
             <span class="role-left">
               <span class="role-icon" aria-hidden="true">👤</span>
-              <span class="role-label">Admin / Staff</span>
+              <span class="role-label">Staff</span>
             </span>
             <span class="role-check" aria-hidden="true">✓</span>
           </button>
@@ -310,14 +306,21 @@
             </span>
             <span class="role-check" aria-hidden="true">✓</span>
           </button>
-          <button class="role-btn active" type="button" data-role="super_admin">
+          <button class="role-btn" type="button" data-role="restaurant_owner">
             <span class="role-left">
-              <span class="role-icon" aria-hidden="true">🛡️</span>
-              <span class="role-label">Super Admin</span>
+              <span class="role-icon" aria-hidden="true">🏪</span>
+              <span class="role-label">Restaurant Owner</span>
             </span>
             <span class="role-check" aria-hidden="true">✓</span>
           </button>
-          <input id="loginAs" name="loginAs" type="hidden" value="super_admin" />
+          <button class="role-btn" type="button" data-role="platform_admin">
+            <span class="role-left">
+              <span class="role-icon" aria-hidden="true">🛡️</span>
+              <span class="role-label">Platform Admin</span>
+            </span>
+            <span class="role-check" aria-hidden="true">✓</span>
+          </button>
+          <input id="loginAs" name="loginAs" type="hidden" value="staff" />
         </div>
 
         <div id="fileWarn" class="card" style="padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.10); display:none;">
@@ -342,10 +345,12 @@
             </div>
           </div>
 
-          <div class="panel-actions">
-            <button class="link" id="forgotBtn" type="button">Forgot password?</button>
-            <div class="muted text-xs" style="color: rgba(255,255,255,0.58);">Staff only</div>
-          </div>
+        <div class="panel-actions" style="flex-wrap: wrap; gap:8px;">
+          <button class="link" id="forgotBtn" type="button">Forgot password?</button>
+          <div class="muted text-xs" style="color: rgba(255,255,255,0.58);">Staff/admin only</div>
+          <span style="flex:1"></span>
+          <a class="link" href="partner.html" style="font-weight:700;">Become a partner →</a>
+        </div>
 
           <button class="login-primary" id="submitBtn" type="submit">
             <span id="submitLabel">Login</span>
@@ -363,9 +368,9 @@
   </div>
 
   <script type="module">
-    import { createClient } from "../js/supabaseClient.js";
     import { showToast, mountThemeToggle } from "../js/ui.js";
-    const supabase = createClient();
+    import { getClient, fetchProfile, cacheSessionProfile, normalizeRole, isStaffRole } from "../js/auth.js";
+    const supabase = getClient();
     const form = document.getElementById("loginForm");
     const errorEl = document.getElementById("loginError");
     const submitBtn = document.getElementById("submitBtn");
@@ -409,7 +414,7 @@
       submitBtn.disabled = true;
       submitLabel.textContent = "Signing in…";
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         errorEl.textContent = error.message;
         submitBtn.disabled = false;
@@ -418,15 +423,43 @@
       }
 
       // Ensure staff-only access is clear (no confusing redirect loops).
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
+      const userId = signInData?.user?.id || signInData?.session?.user?.id || null;
       if (userId) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-        const role = profile?.role;
-        const isStaffRole = role && ["staff", "admin", "branch_admin", "super_admin"].includes(role);
-        if (!isStaffRole) {
+        let { data: profile, error: profileErr } = await fetchProfile(userId);
+        if (profileErr) {
+          console.error("profile_fetch_error", profileErr);
           await supabase.auth.signOut();
-          errorEl.textContent = "Access denied. This account is not staff/admin.";
+          const code = profileErr.code ? ` (${profileErr.code})` : "";
+          errorEl.textContent = `Profile not accessible${code}. ${profileErr.message || "Ask an admin to sync your profile or apply the latest migrations."}`;
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Login";
+          return;
+        }
+        let role = normalizeRole(profile?.role);
+        if (!isStaffRole(role)) {
+          // Attempt auto-upgrade for partner owners who already own a pending restaurant.
+          const { data: restaurants } = await supabase
+            .from("restaurants")
+            .select("id,status")
+            .eq("owner_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          const owned = Array.isArray(restaurants) ? restaurants[0] : null;
+          if (owned?.id) {
+            const { error: upgradeErr } = await supabase.from("profiles").update({
+              role: "restaurant_owner",
+              restaurant_id: owned.id,
+            }).eq("id", userId);
+            if (!upgradeErr) {
+              profile = { ...(profile || {}), role: "restaurant_owner", restaurant_id: owned.id };
+              role = "restaurant_owner";
+            }
+          }
+        }
+        if (!isStaffRole(role)) {
+          await supabase.auth.signOut();
+          const roleLabel = role ? role.replaceAll("_", " ") : "customer";
+          errorEl.textContent = `Access denied. Your role is ${roleLabel}. Ask a platform admin to set your role.`;
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
@@ -434,32 +467,50 @@
 
         // Validate the selected login type against the actual profile role.
         // This does NOT grant access; it only prevents confusing mismatches.
-        const normalized = role === "admin" ? "branch_admin" : role;
-        if (loginAs === "super_admin" && normalized !== "super_admin") {
+        const normalized =
+          role === "admin"
+            ? "branch_admin"
+            : role === "super_admin"
+              ? "platform_admin"
+              : role;
+        if (loginAs === "platform_admin" && normalized !== "platform_admin") {
           await supabase.auth.signOut();
-          errorEl.textContent = "This account is not a Super Admin account.";
+          errorEl.textContent = "This account is not a Platform Admin account.";
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
         }
-        if (loginAs === "branch_admin" && !["branch_admin", "super_admin"].includes(normalized)) {
+        if (loginAs === "restaurant_owner" && !["restaurant_owner", "platform_admin"].includes(normalized)) {
+          await supabase.auth.signOut();
+          errorEl.textContent = "This account is not a Restaurant Owner account.";
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Login";
+          return;
+        }
+        if (loginAs === "branch_admin" && !["branch_admin", "restaurant_owner", "platform_admin"].includes(normalized)) {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Branch Admin account.";
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
         }
-        if (loginAs === "staff" && !["staff", "branch_admin", "super_admin"].includes(normalized)) {
+        if (loginAs === "staff" && !["staff", "branch_admin", "restaurant_owner", "platform_admin"].includes(normalized)) {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Staff account.";
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
         }
+
+        // Help the sidebar render immediately after redirect.
+        try {
+          cacheSessionProfile({ ...profile, id: userId, role }, userId);
+        } catch {}
       }
 
       showToast("Signed in");
-      window.location.href = "dashboard.html";
+      submitLabel.textContent = "Opening dashboard…";
+      window.location.replace("dashboard.html");
     });
   </script>
 </body>

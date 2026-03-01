@@ -55,21 +55,22 @@
   </div>
   <div id="toast" class="toast"></div>
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fetchChats, fetchChatMessages, sendChatMessage } from "../js/api.js";
     import { fmtDateTime } from "../js/utils.js";
     import { subscribeRealtime } from "../js/realtime.js";
     import { mountNotifications } from "../js/notifications_ui.js";
-    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranchLabel } from "../js/branches.js";
 
     renderSidebar("chats.html");
     mountThemeToggle();
     const session = await requireAuth();
-    const supabase = getClient();
-    mountNotifications({ supabase });
-    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: session.profile.role === "super_admin" });
+    mountStatusBanner();
+	    const supabase = getClient();
+	    mountNotifications({ supabase });
+	    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id, profileRestaurantId: session.profile.restaurant_id });
+	    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(session.profile.role) });
     onBranchChange(() => {
       activeConv = null;
       orderCtx.textContent = "Select a conversation";
@@ -106,12 +107,13 @@
 	      const { data, error } = await fetchChats({ branchId });
 	      if (error) { convList.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
 	      if (!data || data.length === 0) { convList.innerHTML = `<div class="muted">No conversations</div>`; return; }
+        const showBranch = branchId === "all";
 	      convList.innerHTML = data.map(c => `
 	        <button class="conv-item" type="button" data-id="${c.id}">
 	          <span class="conv-item__icon" aria-hidden="true">💬</span>
 	          <span class="conv-item__text">
 	            <span class="conv-item__title">Order #${c.order_id?.slice(0,8) || "—"}</span>
-	            <span class="conv-item__sub muted text-xs">${fmtDateTime(c.created_at)}</span>
+	            <span class="conv-item__sub muted text-xs">${showBranch ? `${escapeHtml(getBranchLabel(c.branch_id))} • ` : ""}${escapeHtml(fmtDateTime(c.created_at))}</span>
 	          </span>
 	        </button>`).join("");
 	      convList.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => openConversation(btn.dataset.id)));

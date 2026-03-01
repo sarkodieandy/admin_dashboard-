@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commissions • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Commissions</div>
+          <div class="muted" style="font-size: var(--text-sm)">Platform fees and payouts</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn ghost" id="exportBtn" type="button" title="Export CSV" aria-label="Export CSV">⤓ CSV</button>
+          <button class="btn ghost" id="refreshBtn" type="button" title="Refresh" aria-label="Refresh">⟳</button>
+        </div>
+      </div>
+
+      <div class="page page-enter">
+        <div class="card" style="padding: var(--space-4); box-shadow:none;">
+          <div class="layout-shell" style="gap: var(--space-3); align-items: flex-end;">
+            <div style="width: 200px;">
+              <label class="label">From</label>
+              <input id="fromInput" class="input" type="date" />
+            </div>
+            <div style="width: 200px;">
+              <label class="label">To</label>
+              <input id="toInput" class="input" type="date" />
+            </div>
+            <div id="restaurantFilterWrap" style="width: 280px; display:none;">
+              <label class="label">Restaurant</label>
+              <select id="restaurantSelect" class="input"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-grid" style="margin-top: var(--space-4);">
+          <div class="kpi-card">
+            <div class="muted text-sm">Gross</div>
+            <div id="kpiGross" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Platform Fees</div>
+            <div id="kpiFees" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Restaurant Payouts</div>
+            <div id="kpiPayouts" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="muted text-sm">Orders</div>
+            <div id="kpiOrders" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-4); padding: 0;">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Restaurant</th>
+                  <th>Orders</th>
+                  <th>Gross</th>
+                  <th>Platform Fee</th>
+                  <th>Payout</th>
+                </tr>
+              </thead>
+              <tbody id="commissionsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
+    import { requireAuth, getClient } from "../js/auth.js";
+    import { fetchOrderFinancials, fetchRestaurants } from "../js/api.js";
+    import { fmtMoney, fmtDateTime, debug, debounce } from "../js/utils.js";
+
+    renderSidebar("commissions.html");
+    mountThemeToggle();
+    const session = await requireAuth();
+    mountStatusBanner();
+    const supabase = getClient();
+
+    const isPlatform = ["platform_admin", "super_admin"].includes(session.profile.role);
+    const restaurantFilterWrap = document.getElementById("restaurantFilterWrap");
+    const restaurantSelect = document.getElementById("restaurantSelect");
+    if (isPlatform) restaurantFilterWrap.style.display = "";
+
+    const fromInput = document.getElementById("fromInput");
+    const toInput = document.getElementById("toInput");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const exportBtn = document.getElementById("exportBtn");
+    const tbody = document.getElementById("commissionsTbody");
+
+    const kpiGross = document.getElementById("kpiGross");
+    const kpiFees = document.getElementById("kpiFees");
+    const kpiPayouts = document.getElementById("kpiPayouts");
+    const kpiOrders = document.getElementById("kpiOrders");
+
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 30);
+    fromInput.value = toDateValue(start);
+    toInput.value = toDateValue(today);
+
+    if (isPlatform) {
+      await loadRestaurantOptions();
+      restaurantSelect.addEventListener("change", () => load());
+    }
+
+    const onChange = debounce(() => load(), 150);
+    fromInput.addEventListener("change", onChange);
+    toInput.addEventListener("change", onChange);
+    refreshBtn.addEventListener("click", () => load());
+    exportBtn.addEventListener("click", () => exportCsv());
+
+    let lastAggregates = [];
+    if (isPlatform) await populateRestaurants();
+    load();
+
+    async function populateRestaurants() {
+      const res = await fetchRestaurants({ status: "active", limit: 500 });
+      if (res.error) return;
+      restaurantSelect.innerHTML = `<option value=\"all\">All restaurants</option>` + (res.data || [])
+        .map((r) => `<option value=\"${r.id}\">${r.name}</option>`)
+        .join(\"\\n\");
+    }
+
+    async function loadRestaurantOptions() {
+      restaurantSelect.innerHTML = `<option value="">All restaurants</option>`;
+      const res = await fetchRestaurants({ status: "active", limit: 1000 });
+      if (res.error) {
+        debug("restaurants load error", res.error);
+        return;
+      }
+      const rows = res.data || [];
+      restaurantSelect.innerHTML = [
+        `<option value="all">All restaurants</option>`,
+        ...rows.map((r) => `<option value="${r.id}">${escapeHtml(r.name || r.slug || r.id)}</option>`),
+      ].join("");
+    }
+
+    async function load() {
+      tbody.innerHTML = `
+        <tr><td colspan="5"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+        <tr><td colspan="5"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+      `;
+      kpiGross.textContent = "—";
+      kpiFees.textContent = "—";
+      kpiPayouts.textContent = "—";
+      kpiOrders.textContent = "—";
+
+      const fromIso = isoStart(fromInput.value);
+      const toIso = isoEnd(toInput.value);
+      const restaurantId = isPlatform ? (restaurantSelect.value || null) : null;
+
+      const res = await fetchOrderFinancials({ dateFrom: fromIso, dateTo: toIso, restaurantId, limit: 5000 });
+      if (res.error) {
+        const msg = res.error.code === "42P01"
+          ? "Commissions tables not found. Apply the marketplace migrations first."
+          : res.error.message;
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="5" class="muted">Error: ${msg}</td></tr>`;
+        return;
+      }
+
+      const rows = res.data || [];
+      if (!rows.length) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="5" class="muted">No commission records for this period.</td></tr>`;
+        kpiGross.textContent = fmtMoney(0);
+        kpiFees.textContent = fmtMoney(0);
+        kpiPayouts.textContent = fmtMoney(0);
+        kpiOrders.textContent = "0";
+        lastAggregates = [];
+        return;
+      }
+
+      const ids = Array.from(new Set(rows.map((r) => r.restaurant_id).filter(Boolean)));
+      const nameById = await loadRestaurantNameMap(ids);
+
+      let gross = 0;
+      let fees = 0;
+      let payouts = 0;
+      const byRestaurant = new Map();
+
+      for (const r of rows) {
+        const rid = r.restaurant_id;
+        const g = Number(r.gross_total || 0);
+        const f = Number(r.platform_fee || 0);
+        const p = Number(r.restaurant_payout || 0);
+        gross += g;
+        fees += f;
+        payouts += p;
+
+        const cur = byRestaurant.get(rid) || { restaurant_id: rid, orders: 0, gross: 0, fees: 0, payouts: 0 };
+        cur.orders += 1;
+        cur.gross += g;
+        cur.fees += f;
+        cur.payouts += p;
+        byRestaurant.set(rid, cur);
+      }
+
+      const aggregates = Array.from(byRestaurant.values())
+        .map((a) => ({ ...a, name: nameById.get(a.restaurant_id) || a.restaurant_id }))
+        .sort((a, b) => b.fees - a.fees);
+
+      lastAggregates = aggregates;
+
+      kpiGross.textContent = fmtMoney(gross);
+      kpiFees.textContent = fmtMoney(fees);
+      kpiPayouts.textContent = fmtMoney(payouts);
+      kpiOrders.textContent = String(rows.length);
+
+      tbody.innerHTML = aggregates.map((a) => `
+        <tr>
+          <td>
+            <div class="font-semibold">${escapeHtml(a.name || "—")}</div>
+            <div class="muted text-sm">${escapeHtml(a.restaurant_id)}</div>
+          </td>
+          <td>${a.orders}</td>
+          <td class="font-semibold">${fmtMoney(a.gross)}</td>
+          <td class="font-semibold">${fmtMoney(a.fees)}</td>
+          <td class="font-semibold">${fmtMoney(a.payouts)}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function loadRestaurantNameMap(ids) {
+      const map = new Map();
+      if (!ids.length) return map;
+      try {
+        const res = await supabase.from("restaurants").select("id,name,slug").in("id", ids).limit(1000);
+        if (res.error) return map;
+        (res.data || []).forEach((r) => map.set(r.id, r.name || r.slug || r.id));
+      } catch (_) {}
+      return map;
+    }
+
+    function exportCsv() {
+      if (!lastAggregates.length) {
+        showToast("Nothing to export");
+        return;
+      }
+      const from = fromInput.value;
+      const to = toInput.value;
+      const restaurantName = isPlatform && restaurantSelect.value !== "all"
+        ? (restaurantSelect.options[restaurantSelect.selectedIndex]?.text || "restaurant")
+        : "all";
+      const header = ["restaurant_id", "restaurant_name", "orders", "gross_total", "platform_fee", "restaurant_payout"];
+      const lines = [
+        header.join(","),
+        ...lastAggregates.map((a) => [
+          a.restaurant_id,
+          csvEscape(a.name || ""),
+          a.orders,
+          a.gross.toFixed(2),
+          a.fees.toFixed(2),
+          a.payouts.toFixed(2),
+        ].join(",")),
+      ];
+
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `commissions_${restaurantName}_${from || "start"}_${to || "end"}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(v) {
+      const s = String(v ?? "");
+      if (!/[\",\\n]/.test(s)) return s;
+      return `"${s.replaceAll('"', '""')}"`;
+    }
+
+    function toDateValue(d) {
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    function isoStart(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    }
+
+    function isoEnd(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      d.setHours(23, 59, 59, 999);
+      return d.toISOString();
+    }
+
+    function escapeHtml(s) {
+      return String(s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

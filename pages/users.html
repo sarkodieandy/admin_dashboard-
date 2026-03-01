@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Users • Finger Licking Admin</title>
+    <link rel="stylesheet" href="../css/tokens.css" />
+    <link rel="stylesheet" href="../css/base.css" />
+    <link rel="stylesheet" href="../css/components.css" />
+    <script src="../env.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+    <style>
+      .users-hero {
+        margin-bottom: var(--space-3);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        background: linear-gradient(135deg, rgba(59,130,246,0.14), rgba(14,165,233,0.08));
+        border: 1px solid var(--color-border);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .users-hero__actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .users-table-card {
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-xs);
+      }
+      .filters {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .filters .input,
+      .filters select {
+        min-width: 160px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid transparent;
+      }
+      .chip.active {
+        background: rgba(34,197,94,0.14);
+        color: #22c55e;
+        border-color: rgba(34,197,94,0.35);
+      }
+      .chip.inactive {
+        background: rgba(248,113,113,0.14);
+        color: #f87171;
+        border-color: rgba(248,113,113,0.35);
+      }
+      @media (max-width: 760px) {
+        .users-hero {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">Finger Licking</div>
+        <div class="nav"></div>
+      </aside>
+      <main>
+        <div class="topbar">
+          <div>
+            <div class="font-bold">Users</div>
+            <div class="muted" style="font-size: var(--text-sm)">Owners, staff, and riders across the platform.</div>
+          </div>
+          <div style="margin-left:auto; display:flex; gap:8px;">
+            <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
+            <button class="btn primary" id="refreshBtn">Reload</button>
+          </div>
+        </div>
+        <div class="page">
+          <div class="users-hero">
+            <div>
+              <div class="font-semibold" style="font-size:1.2rem;">User directory</div>
+              <div class="muted text-sm">Filter by role or status, then quickly toggle account access.</div>
+            </div>
+            <div class="users-hero__actions filters">
+              <input id="search" class="input" placeholder="Search name, phone, role" />
+              <select id="roleFilter" class="input">
+                <option value="all">All roles</option>
+                <option value="platform_admin">Platform admin</option>
+                <option value="restaurant_owner">Restaurant owner</option>
+                <option value="branch_admin">Branch admin</option>
+                <option value="staff">Staff</option>
+                <option value="rider">Rider</option>
+                <option value="customer">Customer</option>
+              </select>
+              <select id="statusFilter" class="input">
+                <option value="all">All status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div class="card users-table-card" style="padding:0;">
+            <div class="table-wrap">
+              <table class="table" id="usersTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Role</th>
+                    <th>Restaurant</th>
+                    <th>Branch</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+      import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
+      import { requireAuth, getClient } from "../js/auth.js";
+      import { fmtDateTime, debounce } from "../js/utils.js";
+      import { fetchUsers, updateUserActive } from "../js/api.js";
+      import { mountNotifications } from "../js/notifications_ui.js";
+
+      renderSidebar("users.html");
+      mountThemeToggle();
+      const { profile } = await requireAuth();
+      mountStatusBanner();
+      mountNotifications({ supabase: getClient() });
+
+      if (!["platform_admin", "super_admin"].includes(profile.role)) {
+        showToast("Access denied: platform admins only");
+        window.location.href = "dashboard.html";
+      }
+
+      const tbody = document.querySelector("#usersTable tbody");
+      const searchEl = document.getElementById("search");
+      const roleFilter = document.getElementById("roleFilter");
+      const statusFilter = document.getElementById("statusFilter");
+      document.getElementById("refreshBtn").addEventListener("click", load);
+      searchEl.addEventListener("input", debounce(load, 220));
+      roleFilter.addEventListener("change", load);
+      statusFilter.addEventListener("change", load);
+
+      load();
+
+      async function load() {
+        tbody.innerHTML = `<tr><td colspan="8"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+        const role = roleFilter.value;
+        const search = searchEl.value.trim();
+        const { data, error } = await fetchUsers({ role, search, limit: 300 });
+        if (error) {
+          tbody.innerHTML = `<tr><td colspan="8" class="muted">Error: ${error.message}</td></tr>`;
+          return;
+        }
+        const rows = (data || []).filter((u) => {
+          if (statusFilter.value === "active") return u.is_active !== false;
+          if (statusFilter.value === "inactive") return u.is_active === false;
+          return true;
+        });
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="8" class="muted">No users found</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = rows.map(renderRow).join("");
+        tbody.querySelectorAll("[data-toggle]").forEach((btn) => {
+          btn.addEventListener("click", () => toggleActive(btn.dataset.toggle, btn.dataset.active !== "true"));
+        });
+      }
+
+      function renderRow(u) {
+        const status = u.is_active === false ? "Inactive" : "Active";
+        const chipClass = u.is_active === false ? "inactive" : "active";
+        return `
+          <tr>
+            <td>${u.name || "—"}</td>
+            <td>${u.phone || "—"}</td>
+            <td><span class="tag">${(u.role || "customer").replaceAll("_", " ")}</span></td>
+            <td>${u.restaurant?.name || "—"}</td>
+            <td>${u.branch?.name || "—"}</td>
+            <td><span class="chip ${chipClass}">${status}</span></td>
+            <td>${u.created_at ? fmtDateTime(u.created_at) : "—"}</td>
+            <td>
+              <button class="btn ghost" data-toggle="${u.id}" data-active="${u.is_active !== false}">${u.is_active === false ? "Enable" : "Disable"}</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      async function toggleActive(userId, shouldEnable) {
+        const { error } = await updateUserActive(userId, shouldEnable);
+        if (error) {
+          showToast(error.message || "Update failed");
+          return;
+        }
+        showToast(shouldEnable ? "User enabled" : "User disabled");
+        load();
+      }
+    </script>
+  </body>
+</html>
+

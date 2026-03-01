@@ -20,7 +20,7 @@
       <div class="topbar">
         <div>
           <div class="font-bold">Staff & Roles</div>
-          <div class="muted" style="font-size: var(--text-sm)">Super admin controls branch admins + staff</div>
+          <div class="muted" style="font-size: var(--text-sm)">Owner/admin controls staff access</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
@@ -31,8 +31,8 @@
 
       <div class="page">
         <div id="superOnly" class="card" style="display:none;">
-          <div class="font-semibold">Super admin only</div>
-          <div class="muted text-sm">Only the owner can create and assign branch admins/staff.</div>
+          <div class="font-semibold">Owner/admin only</div>
+          <div class="muted text-sm">Only restaurant owners (or platform admins) can create and assign staff.</div>
         </div>
 
         <div id="missingInvites" class="card" style="display:none;">
@@ -123,7 +123,7 @@
 	            </div>
 	          </div>
 
-	          <div class="card" style="margin-top:14px;">
+	          <div class="card" id="allowlistCard" style="margin-top:14px;">
 	            <div class="font-semibold">Legacy allowlist (compat)</div>
 	            <div class="muted text-sm">If you don’t use invites, allowlist still works for <code>admin</code>/<code>staff</code>. Branch assignment won’t be automatic.</div>
             <div style="display:grid; grid-template-columns: 1fr 140px auto; gap:10px; align-items:end; margin-top:10px;">
@@ -167,7 +167,7 @@
   </div>
 
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import {
       fetchStaffInvites,
@@ -186,23 +186,30 @@
     renderSidebar("staff-roles.html");
     mountThemeToggle();
     const session = await requireAuth();
+    mountStatusBanner();
     const supabase = getClient();
     mountNotifications({ supabase });
 
-    const isSuper = session.profile.role === "super_admin";
-    document.getElementById("superOnly").style.display = isSuper ? "none" : "";
-    document.getElementById("content").style.display = isSuper ? "" : "none";
+    const role = session.profile.role;
+    const isPlatform = ["super_admin", "platform_admin"].includes(role);
+    const canManageStaff = isPlatform || role === "restaurant_owner";
+    document.getElementById("superOnly").style.display = canManageStaff ? "none" : "";
+    document.getElementById("content").style.display = canManageStaff ? "" : "none";
+    if (!isPlatform) {
+      const allowlistCard = document.getElementById("allowlistCard");
+      if (allowlistCard) allowlistCard.style.display = "none";
+    }
 
-    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: isSuper });
+    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id, profileRestaurantId: session.profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: isPlatform });
     onBranchChange(loadAll);
     document.getElementById("reload").addEventListener("click", loadAll);
 
-	    if (isSuper) {
+	    if (canManageStaff) {
 	      fillBranches();
 	      document.getElementById("createInvite").addEventListener("click", createInvite);
 	      document.getElementById("createStaffBtn").addEventListener("click", createStaffLogin);
-	      document.getElementById("saveAllow").addEventListener("click", saveAllow);
+	      if (isPlatform) document.getElementById("saveAllow").addEventListener("click", saveAllow);
         mountBranchAccessModal();
 	      loadAll();
 	    }
@@ -334,7 +341,7 @@
 
     async function loadAll() {
       fillBranches();
-      await Promise.all([loadInvites(), loadUsers(), loadAllowlist()]);
+      await Promise.all([loadInvites(), loadUsers(), isPlatform ? loadAllowlist() : Promise.resolve()]);
     }
 
     async function loadInvites() {
@@ -527,12 +534,12 @@
           if (error) return showToast(error.message);
           // Ensure we don't redundantly store the current primary branch as extra access.
           const existing = (staffAccessByUser.get(id) || []).filter((b) => b && b !== branch_id);
-          if (isSuper) {
-            const access = await setStaffBranchAccess({ userId: id, branchIds: existing });
-            if (access.error) return showToast(access.error.message);
-            staffAccessByUser.set(id, existing);
-            updateAccessSummary(id, branch_id, branches);
-          }
+	          if (canManageStaff) {
+	            const access = await setStaffBranchAccess({ userId: id, branchIds: existing });
+	            if (access.error) return showToast(access.error.message);
+	            staffAccessByUser.set(id, existing);
+	            updateAccessSummary(id, branch_id, branches);
+	          }
           showToast(schemaFallback ? "Saved (active flag skipped until migration applied)" : "Saved");
           loadUsers();
         });

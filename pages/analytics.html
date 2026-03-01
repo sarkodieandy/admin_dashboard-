@@ -68,7 +68,7 @@
     </main>
   </div>
   <script type="module">
-    import { renderSidebar, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import { fmtMoney } from "../js/utils.js";
     import { fetchOrdersRange } from "../js/api.js";
@@ -78,9 +78,10 @@
     renderSidebar("analytics.html");
     mountThemeToggle();
     const { profile } = await requireAuth();
+    mountStatusBanner();
     mountNotifications({ supabase: getClient() });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(profile.role) });
     onBranchChange(load);
 
     let revChart, statusChart, payChart;

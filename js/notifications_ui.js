@@ -22,7 +22,7 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
     <div class="notif-head">
       <div>
         <div class="font-semibold">Notifications</div>
-        <div class="muted text-sm">New orders & customer messages</div>
+        <div class="muted text-sm">Orders, delivery updates & customer messages</div>
       </div>
       <button class="btn ghost" id="notifMarkAll">Mark all read</button>
     </div>
@@ -91,7 +91,15 @@ export function mountNotifications({ supabase, buttonId = "notifBtn" } = {}) {
     }
     list.innerHTML = items
       .map((n) => {
-        const icon = n.type === "new_order" ? "🧾" : n.type === "customer_message" ? "💬" : "🔔";
+        const text = `${n.title || ""} ${n.body || ""}`.toLowerCase();
+        const icon =
+          n.type === "new_order"
+            ? "🧾"
+            : n.type === "customer_message"
+              ? "💬"
+              : text.includes("delivered")
+                ? "✅"
+                : "🔔";
         const href = resolveHref(n);
         return `
           <a class="notif-item ${n.is_read ? "" : "unread"}" data-id="${n.id}" data-href="${href}" href="${href}">

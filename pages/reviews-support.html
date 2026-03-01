@@ -62,10 +62,10 @@
     renderSidebar("reviews-support.html");
     mountThemeToggle();
     const session = await requireAuth();
-    const supabase = getClient();
-    mountNotifications({ supabase });
-    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: session.profile.role === "super_admin" });
+	    const supabase = getClient();
+	    mountNotifications({ supabase });
+	    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id, profileRestaurantId: session.profile.restaurant_id });
+	    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(session.profile.role) });
     onBranchChange(load);
 
     document.getElementById("reload").addEventListener("click", load);

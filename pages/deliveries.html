@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deliveries • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .delivery-filters {
+      display: grid;
+      grid-template-columns: 1.2fr 200px 220px;
+      gap: var(--space-3);
+      align-items: end;
+    }
+    .delivery-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: var(--space-4);
+    }
+    .stat-card {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      box-shadow: var(--shadow-xs);
+    }
+    @media (max-width: 980px) {
+      .delivery-filters {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Deliveries</div>
+          <div class="muted" style="font-size: var(--text-sm)">Live dispatch visibility across riders</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
+          <button class="btn ghost" id="refreshBtn" type="button" title="Refresh" aria-label="Refresh">⟳</button>
+        </div>
+      </div>
+
+      <div class="page page-enter">
+        <div class="card" style="padding: var(--space-4);">
+          <div class="delivery-filters">
+            <div>
+              <label class="label">Search</label>
+              <input id="searchInput" class="input" placeholder="Order id, rider name, restaurant" />
+            </div>
+            <div>
+              <label class="label">Status</label>
+              <select id="statusSelect" class="input">
+                <option value="all">All</option>
+                <option value="assigned">Assigned</option>
+                <option value="picked_up">Picked up</option>
+                <option value="en_route">En route</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label class="label">Scope</label>
+              <div class="muted text-sm">Filters align with your role access.</div>
+            </div>
+          </div>
+
+          <div class="delivery-stats">
+            <div class="stat-card">
+              <div class="muted text-xs">Active</div>
+              <div id="statActive" class="text-2xl font-extrabold">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="muted text-xs">Assigned</div>
+              <div id="statAssigned" class="text-2xl font-extrabold">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="muted text-xs">En route</div>
+              <div id="statEnRoute" class="text-2xl font-extrabold">—</div>
+            </div>
+            <div class="stat-card">
+              <div class="muted text-xs">Delivered</div>
+              <div id="statDelivered" class="text-2xl font-extrabold">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-4); padding:0;">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Rider</th>
+                  <th>Status</th>
+                  <th>Restaurant</th>
+                  <th>Branch</th>
+                  <th>Last update</th>
+                </tr>
+              </thead>
+              <tbody id="deliveriesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchDeliveries } from "../js/api.js";
+    import { fmtDateTime, debounce, debug } from "../js/utils.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
+
+    renderSidebar("deliveries.html");
+    mountThemeToggle();
+    const session = await requireAuth();
+    mountStatusBanner();
+
+    const searchInput = document.getElementById("searchInput");
+    const statusSelect = document.getElementById("statusSelect");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const tbody = document.getElementById("deliveriesTbody");
+    const statActive = document.getElementById("statActive");
+    const statAssigned = document.getElementById("statAssigned");
+    const statEnRoute = document.getElementById("statEnRoute");
+    const statDelivered = document.getElementById("statDelivered");
+
+    await initBranchState({
+      role: session.profile.role,
+      profileBranchId: session.profile.branch_id,
+      profileRestaurantId: session.profile.restaurant_id,
+    });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
+      allowAll: ["super_admin", "platform_admin"].includes(session.profile.role),
+    });
+    onBranchChange(() => load());
+
+    searchInput.addEventListener("input", debounce(() => load(), 250));
+    statusSelect.addEventListener("change", () => load());
+    refreshBtn.addEventListener("click", () => load());
+
+    load();
+
+    function statusTag(status) {
+      const s = String(status || "assigned");
+      if (s === "delivered") return `<span class="tag success">Delivered</span>`;
+      if (s === "en_route") return `<span class="tag info">En route</span>`;
+      if (s === "picked_up") return `<span class="tag warning">Picked up</span>`;
+      if (s === "cancelled") return `<span class="tag danger">Cancelled</span>`;
+      return `<span class="tag">Assigned</span>`;
+    }
+
+    async function load() {
+      tbody.innerHTML = `
+        <tr><td colspan="6"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+        <tr><td colspan="6"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+      `;
+      statActive.textContent = "—";
+      statAssigned.textContent = "—";
+      statEnRoute.textContent = "—";
+      statDelivered.textContent = "—";
+
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const status = statusSelect.value === "all" ? null : statusSelect.value;
+
+      const res = await fetchDeliveries({ branchId, status, limit: 200 });
+      if (res.error) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="6" class="muted">Error: ${res.error.message}</td></tr>`;
+        return;
+      }
+
+      const rows = res.data || [];
+      const term = searchInput.value.trim().toLowerCase();
+      const filtered = term
+        ? rows.filter((row) => {
+            const orderId = (row.order_id || "").toString();
+            const riderName = row.rider?.name || "";
+            const restaurantName = row.restaurant?.name || "";
+            return (
+              orderId.toLowerCase().includes(term) ||
+              riderName.toLowerCase().includes(term) ||
+              restaurantName.toLowerCase().includes(term)
+            );
+          })
+        : rows;
+
+      const counts = filtered.reduce(
+        (acc, row) => {
+          const s = row.status || "assigned";
+          acc.active += ["assigned", "picked_up", "en_route"].includes(s) ? 1 : 0;
+          if (s === "assigned") acc.assigned += 1;
+          if (s === "en_route") acc.enRoute += 1;
+          if (s === "delivered") acc.delivered += 1;
+          return acc;
+        },
+        { active: 0, assigned: 0, enRoute: 0, delivered: 0 },
+      );
+      statActive.textContent = counts.active;
+      statAssigned.textContent = counts.assigned;
+      statEnRoute.textContent = counts.enRoute;
+      statDelivered.textContent = counts.delivered;
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="6" class="muted">No deliveries found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered
+        .map((row) => {
+          const orderId = row.order_id?.slice?.(0, 8) || row.order_id;
+          const rider = row.rider?.name || "Unassigned";
+          const restaurant = row.restaurant?.name || "—";
+          const branch = row.branch?.name || "—";
+          const updated = row.updated_at ? fmtDateTime(row.updated_at) : "—";
+          return `
+            <tr>
+              <td class="font-semibold">#${escapeHtml(orderId)}</td>
+              <td>${escapeHtml(rider)}</td>
+              <td>${statusTag(row.status)}</td>
+              <td>${escapeHtml(restaurant)}</td>
+              <td>${escapeHtml(branch)}</td>
+              <td class="muted text-sm">${escapeHtml(updated)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    function escapeHtml(s) {
+      return String(s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

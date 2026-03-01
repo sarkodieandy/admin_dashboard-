@@ -25,7 +25,7 @@
           <div class="muted" style="font-size: var(--text-sm)">Overview</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
-          <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
+          <select id="branchSwitcherSelect" class="input" style="height:38px; width:200px; padding-right:32px;"></select>
           <button class="btn ghost" title="Search">🔍</button>
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <div style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#60a5fa,#2563eb); display:grid; place-items:center; color:white; font-weight:700;">A</div>
@@ -59,8 +59,11 @@
             <div id="kpi-chats" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
           </div>
           <div class="kpi-card">
-            <div class="muted text-sm">Cancellations</div>
-            <div id="kpi-cancel" class="text-2xl font-extrabold" style="margin-top:4px;">—</div>
+            <div class="muted text-sm">Branch</div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
+              <div id="kpi-branch" class="text-2xl font-extrabold">—</div>
+              <span class="tag info" id="kpi-restaurant">—</span>
+            </div>
           </div>
         </div>
 
@@ -76,8 +79,15 @@
             <div id="recentOrders" class="space-y-2"></div>
           </div>
           <div class="card" style="width: 420px;">
-            <div class="font-bold" style="margin-bottom: var(--space-3);">Orders by Hour (today)</div>
-            <canvas id="ordersChart" height="200"></canvas>
+            <div class="font-bold" style="margin-bottom: var(--space-3);">Top Restaurants (7 days)</div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Restaurant</th><th>Orders</th><th>Gross</th></tr>
+                </thead>
+                <tbody id="topRestaurantsBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -87,10 +97,11 @@
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
+    import { getCurrentScope, isPlatformRolePublic } from "../js/auth.js";
     import { fetchRecentOrders } from "../js/api.js";
     import { fmtMoney, statusLabel, debug } from "../js/utils.js";
     import { mountNotifications } from "../js/notifications_ui.js";
-    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId } from "../js/branches.js";
+    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranchLabel, getBranches } from "../js/branches.js";
 
     renderSidebar("dashboard.html");
     mountThemeToggle();
@@ -98,23 +109,52 @@
     const supabase = getClient();
     mountNotifications({ supabase });
 
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(profile.role) });
     onBranchChange(() => {
       loadKpis();
       loadRecent();
-      drawChart();
+      loadTop();
     });
 
     loadKpis();
     loadRecent();
-    drawChart();
+    loadTop();
+
+    async function setContextBadges() {
+      const branchId = getSelectedBranchId();
+      const branchLabel = getBranchLabel(branchId);
+      const branchEl = document.getElementById("kpi-branch");
+      const restaurantEl = document.getElementById("kpi-restaurant");
+      if (branchEl) branchEl.textContent = branchLabel;
+
+      // Prefer branch-linked restaurant name when available (platform view includes relation)
+      const branches = getBranches();
+      let restaurantName = branches.find((b) => b.id === branchId)?.restaurant?.name;
+
+      if (!restaurantName && profile.restaurant_id) {
+        try {
+          const { data } = await supabase.from("restaurants").select("name").eq("id", profile.restaurant_id).maybeSingle();
+          restaurantName = data?.name;
+        } catch (err) {
+          debug("restaurant label error", err);
+        }
+      }
+
+      if (!restaurantName && Array.isArray(branches) && branches.length === 1) {
+        restaurantName = branches[0]?.restaurant?.name;
+      }
+
+      if (!restaurantName) restaurantName = "All restaurants";
+      if (restaurantEl) restaurantEl.textContent = restaurantName;
+    }
 
     async function loadKpis() {
       const rawBranch = getSelectedBranchId();
       const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const today = new Date(); today.setHours(0,0,0,0);
-      let q = supabase.from("orders").select("total,status,branch_id").gte("created_at", today.toISOString());
+      let q = supabase.from("orders").select("total,status,branch_id,restaurant_id").gte("created_at", today.toISOString());
+      if (!isPlatformRolePublic(profile.role)) q = q.eq("restaurant_id", profile.restaurant_id);
       if (branchId) q = q.eq("branch_id", branchId);
       const { data, error } = await q;
       if (error) debug("kpi orders error", error);
@@ -130,6 +170,7 @@
       if (chatErr) debug("kpi chats error", chatErr);
       document.getElementById("kpi-chats").textContent = chats?.length || 0;
       document.getElementById("kpi-time").textContent = "28 min";
+      setContextBadges();
     }
 
     async function loadRecent() {
@@ -167,28 +208,89 @@
       return map[s] || "#e2e8f0";
     }
 
-    async function drawChart() {
-      const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-      const today = new Date(); today.setHours(0,0,0,0);
-      let q = supabase.from("orders").select("created_at,branch_id").gte("created_at", today.toISOString());
-      if (branchId) q = q.eq("branch_id", branchId);
+    async function loadTop() {
+      const tbody = document.getElementById("topRestaurantsBody");
+      if (!tbody) return;
+      tbody.innerHTML = `<tr><td colspan="3"><div class="skeleton" style="height:40px; border-radius:var(--radius-sm);"></div></td></tr>`;
+
+      const today = new Date();
+      const start = new Date();
+      start.setDate(today.getDate() - 6);
+      const dateFrom = start.toISOString();
+      const dateTo = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+
+      let q = supabase
+        .from("order_financials")
+        .select("restaurant_id,gross_total,created_at")
+        .gte("created_at", dateFrom)
+        .lte("created_at", dateTo)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+
+      if (!isPlatformRolePublic(profile.role) && profile.restaurant_id) {
+        q = q.eq("restaurant_id", profile.restaurant_id);
+      }
+
       const { data, error } = await q;
-      if (error) debug("chart error", error);
-      const buckets = Array.from({length:24},(_,h)=>({h, c:0}));
-      (data||[]).forEach(o=>{
-        const hour = new Date(o.created_at).getHours();
-        buckets[hour].c++;
-      });
-      const ctx = document.getElementById("ordersChart");
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: buckets.map(b=>b.h),
-          datasets: [{ label:"Orders", data: buckets.map(b=>b.c), backgroundColor:"#3b82f6" }]
-        },
-        options: { plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true} } }
-      });
+      if (error) {
+        debug("top restaurants error", error);
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="3" class="muted">${error.message}</td></tr>`;
+        return;
+      }
+
+      const byRestaurant = new Map();
+      for (const row of data || []) {
+        const rid = row.restaurant_id;
+        if (!rid) continue;
+        const current = byRestaurant.get(rid) || { gross: 0, orders: 0 };
+        current.gross += Number(row.gross_total || 0);
+        current.orders += 1;
+        byRestaurant.set(rid, current);
+      }
+
+      const top = Array.from(byRestaurant.entries())
+        .map(([id, stats]) => ({ id, ...stats }))
+        .sort((a, b) => b.gross - a.gross)
+        .slice(0, 5);
+
+      if (!top.length) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="3" class="muted">No data yet.</td></tr>`;
+        return;
+      }
+
+      // Resolve names in one batched query.
+      const ids = top.map((t) => t.id);
+      let nameMap = new Map();
+      try {
+        const { data: names, error: nameErr } = await supabase.from("restaurants").select("id,name").in("id", ids);
+        if (!nameErr && Array.isArray(names)) {
+          nameMap = new Map(names.map((r) => [r.id, r.name || r.id]));
+        }
+      } catch (err) {
+        debug("top names error", err);
+      }
+
+      tbody.innerHTML = top
+        .map((row) => {
+          const name = nameMap.get(row.id) || row.id;
+          return `
+            <tr>
+              <td>${escapeHtml(name)}</td>
+              <td>${row.orders}</td>
+              <td>${fmtMoney(row.gross)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
   </script>
 </body>

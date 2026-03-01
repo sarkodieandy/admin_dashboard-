@@ -5,6 +5,8 @@ const listeners = new Set();
 let state = {
   branches: [],
   selected: localStorage.getItem(STORAGE_KEY) || "all",
+  isPlatform: false,
+  lockedBranchId: null,
 };
 let switcher = null;
 let allowAllSelection = false;
@@ -21,16 +23,18 @@ function refreshSwitcher() {
     options.push({ value: "all", label: "All branches" });
   }
   state.branches.forEach((branch) => {
-    options.push({ value: branch.id, label: branch.name });
+    options.push({ value: branch.id, label: branchLabel(branch) });
   });
   switcher.innerHTML = options
     .map((option) => `<option value="${option.value}">${option.label}</option>`)
     .join("");
   if (!state.selected || (!allowAllSelection && optionMissing(state.selected))) {
     state.selected = state.branches[0]?.id || "all";
+    if (state.lockedBranchId) state.selected = state.lockedBranchId;
     localStorage.setItem(STORAGE_KEY, state.selected);
   }
   switcher.value = state.selected;
+  switcher.disabled = Boolean(state.lockedBranchId);
 }
 
 function optionMissing(value) {
@@ -38,10 +42,32 @@ function optionMissing(value) {
   return !state.branches.some((branch) => branch.id === value);
 }
 
-export async function initBranchState({ role, profileBranchId }) {
-  const { data } = await fetchBranches();
+function getRestaurantName(branch) {
+  const restaurant = branch?.restaurant;
+  if (!restaurant) return null;
+  if (Array.isArray(restaurant)) return restaurant[0]?.name || null;
+  return restaurant?.name || null;
+}
+
+function branchLabel(branch) {
+  const name = branch?.name || "Branch";
+  if (!state.isPlatform) return name;
+  const restaurantName = getRestaurantName(branch);
+  if (!restaurantName) return name;
+  return `${restaurantName} • ${name}`;
+}
+
+export async function initBranchState({ role, profileBranchId, profileRestaurantId }) {
+  const isPlatform = role === "super_admin" || role === "platform_admin";
+  state.isPlatform = isPlatform;
+  state.lockedBranchId = ["branch_admin", "staff"].includes(role) ? profileBranchId || null : null;
+  const { data } = await fetchBranches({
+    restaurantId: isPlatform ? null : profileRestaurantId,
+    includeRestaurant: isPlatform,
+  });
   state.branches = data || [];
-  if (role === "super_admin") {
+  const isOwner = role === "restaurant_owner";
+  if (isPlatform || isOwner) {
     if (!state.selected || optionMissing(state.selected)) {
       state.selected = state.branches.length === 1 ? state.branches[0].id : "all";
     }
@@ -53,6 +79,7 @@ export async function initBranchState({ role, profileBranchId }) {
     const storedIsValid =
       (stored === "all" && hasMultipleBranches) || state.branches.some((branch) => branch.id === stored);
     state.selected = storedIsValid ? stored : profileBranchId || state.branches[0]?.id || "all";
+    if (state.lockedBranchId) state.selected = state.lockedBranchId;
   }
   localStorage.setItem(STORAGE_KEY, state.selected);
   notify();
@@ -70,7 +97,7 @@ export function getBranches() {
 export function getBranchLabel(branchId) {
   if (!branchId || branchId === "all") return "All branches";
   const branch = state.branches.find((b) => b.id === branchId);
-  return branch ? branch.name : "Unknown Branch";
+  return branch ? branchLabel(branch) : "Unknown Branch";
 }
 
 export function onBranchChange(fn) {
@@ -90,7 +117,7 @@ export function registerBranchSwitcher(selectElement, { allowAll = false } = {})
   switcher = selectElement;
   // Auto-enable "All branches" when the user has access to multiple branches.
   // Super admins can always use "All branches".
-  allowAllSelection = allowAll || state.branches.length > 1;
+  allowAllSelection = !state.lockedBranchId && (allowAll || state.branches.length > 1);
   switcher.addEventListener("change", () => {
     setSelectedBranch(switcher.value);
   });

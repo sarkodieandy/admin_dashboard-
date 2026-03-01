@@ -41,6 +41,28 @@ img { max-width: 100%; display: block; }
 .shadow { box-shadow: var(--shadow-sm); }
 .hidden { display: none !important; }
 .clickable { cursor: pointer; }
+.status-banner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(234, 179, 8, 0.16);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: var(--color-text);
+}
+.status-banner__icon { font-size: 18px; }
+.status-banner__title { font-weight: 800; letter-spacing: -0.1px; }
+.status-banner__body { color: var(--color-muted); font-size: 14px; }
+.status-blocked button.btn.primary,
+.status-blocked button.btn,
+.status-blocked .pill,
+.status-blocked .tab,
+.status-blocked .actionable {
+  pointer-events: none !important;
+  opacity: 0.55 !important;
+}
 
 :focus-visible {
   outline: 2px solid var(--color-primary);

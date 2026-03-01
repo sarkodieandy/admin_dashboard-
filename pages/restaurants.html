@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restaurants • Finger Licking Admin</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    .rider-list {
+      display: grid;
+      gap: 8px;
+      max-height: 320px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    #createRestaurantModal {
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      padding: 20px 14px;
+    }
+
+    #createRestaurantModal .modal {
+      width: min(640px, 96vw);
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      margin: 0 auto;
+    }
+
+    #createRestaurantModal .modal header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--color-panel);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 12px;
+    }
+
+    #createRestaurantForm {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 6px;
+      padding-bottom: 4px;
+    }
+
+    #createRestaurantSubmit {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      box-shadow: 0 -8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    @media (max-width: 640px) {
+      #createRestaurantModal {
+        padding: 10px;
+      }
+
+      #createRestaurantModal .modal {
+        max-height: calc(100vh - 20px);
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Finger Licking</div>
+      <div class="nav"></div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <div>
+          <div id="pageTitle" class="font-bold">Restaurants</div>
+          <div class="muted" style="font-size: var(--text-sm)">Approve, suspend, and set commission</div>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+          <button class="btn primary" id="openCreateRestaurantBtn" type="button">Add restaurant</button>
+          <button class="btn ghost" id="refreshBtn" type="button" title="Refresh" aria-label="Refresh">⟳</button>
+        </div>
+      </div>
+
+      <div class="page page-enter">
+        <div class="card" style="padding: var(--space-4); box-shadow: none;">
+          <div class="layout-shell" style="gap: var(--space-3); align-items: flex-end;">
+            <div style="flex: 1; min-width: 240px;">
+              <label class="label">Search</label>
+              <input id="searchInput" class="input" placeholder="Search name, slug, email, phone" />
+            </div>
+            <div style="width: 220px;">
+              <label class="label">Status</label>
+              <select id="statusSelect" class="input">
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-4); padding: 0;">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Restaurant</th>
+                  <th>Owner</th>
+                  <th>Status</th>
+                  <th>Active</th>
+                  <th>Commission</th>
+                  <th>Created</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="restaurantsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div class="modal-backdrop" id="createRestaurantModal">
+    <div class="modal">
+      <header>
+        <div>
+          <div class="font-semibold">Create restaurant login</div>
+          <div class="muted text-sm">Platform admins can create the restaurant owner login and the restaurant record together.</div>
+        </div>
+        <button class="btn ghost" id="closeCreateRestaurantModal">✕</button>
+      </header>
+      <form id="createRestaurantForm" style="display:grid; gap:12px;">
+        <div>
+          <label class="label">Restaurant name</label>
+          <input class="input" id="createRestaurantName" required />
+        </div>
+        <div>
+          <label class="label">Owner name</label>
+          <input class="input" id="createOwnerName" required />
+        </div>
+        <div class="layout-shell" style="gap:12px;">
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Login email</label>
+            <input class="input" id="createRestaurantEmail" type="email" autocomplete="username" required />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Temporary password</label>
+            <input class="input" id="createRestaurantPassword" type="password" autocomplete="new-password" minlength="8" required />
+          </div>
+        </div>
+        <div class="muted text-sm">The owner will receive these login credentials automatically by email after the account is created.</div>
+        <div class="layout-shell" style="gap:12px;">
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Phone</label>
+            <input class="input" id="createRestaurantPhone" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Slug</label>
+            <input class="input" id="createRestaurantSlug" placeholder="optional-custom-slug" />
+          </div>
+        </div>
+        <div>
+          <label class="label">Logo</label>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <input class="input" id="createRestaurantLogoUrl" placeholder="Paste logo URL (optional)" style="flex:1; min-width:220px;" />
+            <label class="btn secondary" style="white-space:nowrap;">
+              Upload…
+              <input id="createRestaurantLogoFile" type="file" accept="image/*" style="display:none;" />
+            </label>
+          </div>
+          <div class="muted text-sm" style="margin-top:6px;">You can paste a logo URL or upload from device. Upload takes priority.</div>
+          <div id="createRestaurantLogoPreview" style="margin-top:10px; display:none; align-items:center; gap:10px;">
+            <img id="createRestaurantLogoPreviewImg" alt="" style="width:72px; height:72px; object-fit:cover; border-radius:14px; border:1px solid var(--color-border);" />
+            <button class="btn ghost" id="clearRestaurantLogo" type="button">Remove logo</button>
+          </div>
+        </div>
+        <div class="layout-shell" style="gap:12px;">
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Main branch name</label>
+            <input class="input" id="createRestaurantBranchName" value="Main Branch" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Commission (%)</label>
+            <input class="input" id="createRestaurantCommission" type="number" min="0" max="100" step="0.01" value="10" />
+          </div>
+        </div>
+        <div>
+          <label class="label">Branch address</label>
+          <textarea class="input" id="createRestaurantBranchAddress" rows="2" placeholder="Optional main branch address"></textarea>
+        </div>
+        <label class="label" style="display:flex; align-items:center; gap:10px;">
+          <input type="checkbox" id="createRestaurantActivate" checked />
+          <span>Activate restaurant now</span>
+        </label>
+        <button class="btn primary" id="createRestaurantSubmit" type="submit">Create restaurant</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="ownerModal">
+    <div class="modal">
+      <header>
+        <div>
+          <div class="font-semibold" id="ownerModalTitle">Link owner</div>
+          <div class="muted text-sm" id="ownerModalSubtitle">Assign a restaurant owner account.</div>
+        </div>
+        <button class="btn ghost" id="closeOwnerModal">✕</button>
+      </header>
+      <div style="display:grid; gap:12px;">
+        <input id="ownerSearch" class="input" placeholder="Search by name, phone, or user id" />
+        <div id="ownerList" class="rider-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
+    import { requireAuth } from "../js/auth.js";
+    import { fetchRestaurants, updateRestaurant, upsertRestaurantBilling, fetchProfilesByIds, searchOwnerCandidates, linkOwnerToRestaurant, createRestaurantAccount, deleteRestaurantAdmin } from "../js/api.js";
+    import { debounce, fmtDateTime, debug } from "../js/utils.js";
+    import { uploadRestaurantLogoFile } from "../js/storage.js";
+
+    renderSidebar("restaurants.html");
+    mountThemeToggle();
+    const session = await requireAuth();
+    mountStatusBanner();
+
+    const isPlatform = ["platform_admin", "super_admin"].includes(session.profile.role);
+    if (!isPlatform) {
+      showToast("Access denied");
+      window.location.href = "dashboard.html";
+      // Stop module execution.
+      await new Promise(() => {});
+    }
+
+    const searchInput = document.getElementById("searchInput");
+    const statusSelect = document.getElementById("statusSelect");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const openCreateRestaurantBtn = document.getElementById("openCreateRestaurantBtn");
+    const tbody = document.getElementById("restaurantsTbody");
+    const createRestaurantModal = document.getElementById("createRestaurantModal");
+    const createRestaurantForm = document.getElementById("createRestaurantForm");
+    const createRestaurantSubmit = document.getElementById("createRestaurantSubmit");
+    const createRestaurantLogoFile = document.getElementById("createRestaurantLogoFile");
+    const createRestaurantLogoPreview = document.getElementById("createRestaurantLogoPreview");
+    const createRestaurantLogoPreviewImg = document.getElementById("createRestaurantLogoPreviewImg");
+    const clearRestaurantLogoBtn = document.getElementById("clearRestaurantLogo");
+    const ownerModal = document.getElementById("ownerModal");
+    const ownerSearch = document.getElementById("ownerSearch");
+    const ownerList = document.getElementById("ownerList");
+    const ownerModalTitle = document.getElementById("ownerModalTitle");
+    let pendingOwnerRestaurantId = null;
+    let selectedRestaurantLogoObjectUrl = null;
+
+    refreshBtn.addEventListener("click", () => load());
+    openCreateRestaurantBtn.addEventListener("click", () => openCreateRestaurantModal());
+    searchInput.addEventListener("input", debounce(() => load(), 300));
+    statusSelect.addEventListener("change", () => load());
+    document.getElementById("closeCreateRestaurantModal").addEventListener("click", () => closeCreateRestaurantModal());
+    createRestaurantModal.addEventListener("click", (e) => {
+      if (e.target === createRestaurantModal) closeCreateRestaurantModal();
+    });
+    document.getElementById("closeOwnerModal").addEventListener("click", () => closeOwnerModal());
+    ownerModal.addEventListener("click", (e) => {
+      if (e.target === ownerModal) closeOwnerModal();
+    });
+    ownerSearch.addEventListener("input", debounce(() => renderOwnerCandidates(ownerSearch.value.trim()), 300));
+    createRestaurantLogoFile.addEventListener("change", () => {
+      const file = createRestaurantLogoFile.files?.[0];
+      if (!file) return;
+      if (selectedRestaurantLogoObjectUrl) URL.revokeObjectURL(selectedRestaurantLogoObjectUrl);
+      selectedRestaurantLogoObjectUrl = URL.createObjectURL(file);
+      createRestaurantLogoPreviewImg.src = selectedRestaurantLogoObjectUrl;
+      createRestaurantLogoPreview.style.display = "flex";
+    });
+    clearRestaurantLogoBtn.addEventListener("click", () => {
+      document.getElementById("createRestaurantLogoUrl").value = "";
+      createRestaurantLogoFile.value = "";
+      if (selectedRestaurantLogoObjectUrl) URL.revokeObjectURL(selectedRestaurantLogoObjectUrl);
+      selectedRestaurantLogoObjectUrl = null;
+      createRestaurantLogoPreviewImg.removeAttribute("src");
+      createRestaurantLogoPreview.style.display = "none";
+    });
+
+    tbody.addEventListener("click", async (e) => {
+      const btn = e.target?.closest?.("button[data-action]");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (!id || !action) return;
+
+      btn.disabled = true;
+      try {
+        if (action === "link-owner") {
+          openOwnerModal(id, btn.dataset.name || "");
+          return;
+        }
+        if (action === "approve") {
+          const res = await updateRestaurant(id, { status: "active", is_active: true });
+          if (res.error) throw res.error;
+          showToast("Restaurant approved");
+          await load({ preserveScroll: true });
+        }
+        if (action === "suspend") {
+          const res = await updateRestaurant(id, { status: "suspended" });
+          if (res.error) throw res.error;
+          showToast("Restaurant suspended");
+          await load({ preserveScroll: true });
+        }
+        if (action === "activate") {
+          const res = await updateRestaurant(id, { is_active: true });
+          if (res.error) throw res.error;
+          showToast("Restaurant enabled");
+          await load({ preserveScroll: true });
+        }
+        if (action === "deactivate") {
+          const res = await updateRestaurant(id, { is_active: false });
+          if (res.error) throw res.error;
+          showToast("Restaurant disabled");
+          await load({ preserveScroll: true });
+        }
+        if (action === "delete") {
+          const ok = window.confirm(
+            "Delete this restaurant?\n\nThis removes its branches, menu, categories, promos, and logo from the customer app, and disables linked dashboard/rider accounts. Historical orders stay in the database but lose restaurant scope."
+          );
+          if (!ok) return;
+          const res = await deleteRestaurantAdmin(id);
+          if (res.error) throw res.error;
+          showToast("Restaurant deleted");
+          await load();
+        }
+      } catch (err) {
+        debug("restaurant action error", err);
+        showToast(err?.message || "Action failed");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    tbody.addEventListener("change", async (e) => {
+      const input = e.target?.closest?.("input[data-billing]");
+      if (!input) return;
+      const id = input.dataset.id;
+      if (!id) return;
+
+      const raw = String(input.value || "").trim();
+      const percent = Number(raw);
+      if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+        showToast("Commission must be between 0 and 100");
+        return;
+      }
+
+      input.disabled = true;
+      try {
+        const rate = Math.min(1, Math.max(0, percent / 100));
+        const res = await upsertRestaurantBilling(id, { commission_rate: rate });
+        if (res.error) throw res.error;
+        showToast("Commission updated");
+      } catch (err) {
+        debug("billing update error", err);
+        showToast(err?.message || "Update failed");
+      } finally {
+        input.disabled = false;
+      }
+    });
+
+    createRestaurantForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      createRestaurantSubmit.disabled = true;
+      const originalLabel = createRestaurantSubmit.textContent;
+      createRestaurantSubmit.textContent = "Creating…";
+
+      try {
+        const commissionPct = Number(document.getElementById("createRestaurantCommission").value || 10);
+        const restaurantName = document.getElementById("createRestaurantName").value.trim();
+        const slugHint = document.getElementById("createRestaurantSlug").value.trim();
+        const logoFile = createRestaurantLogoFile.files?.[0] || null;
+        let logoUrl = document.getElementById("createRestaurantLogoUrl").value.trim();
+
+        if (logoFile) {
+          const uploadedLogo = await uploadRestaurantLogoFile({
+            file: logoFile,
+            restaurantName,
+            slugHint,
+          });
+          if (uploadedLogo.error) throw uploadedLogo.error;
+          logoUrl = uploadedLogo.data?.publicUrl || logoUrl;
+        }
+
+        const res = await createRestaurantAccount({
+          restaurant_name: restaurantName,
+          owner_name: document.getElementById("createOwnerName").value.trim(),
+          email: document.getElementById("createRestaurantEmail").value.trim().toLowerCase(),
+          password: document.getElementById("createRestaurantPassword").value,
+          phone: document.getElementById("createRestaurantPhone").value.trim(),
+          slug: slugHint,
+          logo_url: logoUrl,
+          branch_name: document.getElementById("createRestaurantBranchName").value.trim(),
+          branch_address: document.getElementById("createRestaurantBranchAddress").value.trim(),
+          activate: document.getElementById("createRestaurantActivate").checked,
+          commission_rate: Number.isFinite(commissionPct) ? commissionPct / 100 : 0.10,
+        });
+        if (res.error) throw res.error;
+
+        const email = document.getElementById("createRestaurantEmail").value.trim();
+        if (res.data?.email_sent === false) {
+          const emailError = String(res.data?.email_error || "Email sending failed");
+          showToast(`Restaurant created, but credentials email failed: ${emailError}`);
+        } else {
+          showToast(`Restaurant created. Credentials emailed to ${email}`);
+        }
+        closeCreateRestaurantModal();
+        await load();
+      } catch (err) {
+        debug("restaurant create error", err);
+        showToast(err?.message || "Failed to create restaurant");
+      } finally {
+        createRestaurantSubmit.disabled = false;
+        createRestaurantSubmit.textContent = originalLabel;
+      }
+    });
+
+    load();
+
+    function statusTag(status) {
+      const s = String(status || "pending").toLowerCase();
+      if (s === "active") return `<span class="tag success">Active</span>`;
+      if (s === "suspended") return `<span class="tag danger">Suspended</span>`;
+      return `<span class="tag warning">Pending</span>`;
+    }
+
+    function activeTag(isActive) {
+      return isActive === false
+        ? `<span class="tag danger">No</span>`
+        : `<span class="tag success">Yes</span>`;
+    }
+
+    async function load({ preserveScroll = false } = {}) {
+      const scrollY = preserveScroll ? window.scrollY : 0;
+      tbody.innerHTML = `
+        <tr><td colspan="7"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+        <tr><td colspan="7"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+        <tr><td colspan="7"><div class="skeleton" style="height:44px; border-radius:var(--radius-sm);"></div></td></tr>
+      `;
+
+      const status = statusSelect.value;
+      const search = searchInput.value.trim();
+
+      const res = await fetchRestaurants({ status, search, limit: 200, offset: 0 });
+      if (res.error) {
+        const msg = res.error.code === "42P01"
+          ? "Restaurants table not found. Apply the marketplace migrations first."
+          : res.error.message;
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="7" class="muted">Error: ${msg}</td></tr>`;
+        return;
+      }
+
+      const rows = res.data || [];
+      if (!rows.length) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="7" class="muted">No restaurants found.</td></tr>`;
+        return;
+      }
+
+      const ownerIds = rows.map((r) => r.owner_id).filter(Boolean);
+      let ownerMap = new Map();
+      if (ownerIds.length) {
+        const owners = await fetchProfilesByIds(ownerIds);
+        if (!owners.error) {
+          ownerMap = new Map((owners.data || []).map((o) => [o.id, o]));
+        }
+      }
+
+      tbody.innerHTML = rows.map((r) => {
+        const created = r.created_at ? fmtDateTime(r.created_at) : "—";
+        const slug = (r.slug || "").trim();
+        const subtitle = [slug && `@${slug}`, r.email, r.phone].filter(Boolean).join(" • ");
+        const billing = r.billing;
+        const commissionPct = billing?.commission_rate != null ? (Number(billing.commission_rate) * 100).toFixed(2) : "";
+        const owner = r.owner_id ? ownerMap.get(r.owner_id) : null;
+        const ownerLine = owner
+          ? `${escapeHtml(owner.name || "Owner")} • ${escapeHtml(owner.phone || "No phone")}`
+          : "Unlinked";
+        const actions = `
+          <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+            <button class="btn small ghost" data-action="link-owner" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">
+              ${owner ? "Change owner" : "Link owner"}
+            </button>
+            ${String(r.status || "pending") !== "active" ? `<button class="btn small" data-action="approve" data-id="${r.id}">Approve</button>` : ""}
+            ${String(r.status || "pending") !== "suspended" ? `<button class="btn small danger" data-action="suspend" data-id="${r.id}">Suspend</button>` : ""}
+            ${r.is_active === false
+              ? `<button class="btn small" data-action="activate" data-id="${r.id}">Enable</button>`
+              : `<button class="btn small ghost" data-action="deactivate" data-id="${r.id}">Disable</button>`}
+            <button class="btn small danger" data-action="delete" data-id="${r.id}">Delete</button>
+          </div>
+        `;
+
+        return `
+          <tr>
+            <td>
+              <div class="font-semibold">${escapeHtml(r.name || "Restaurant")}</div>
+              <div class="muted text-sm">${escapeHtml(subtitle || "—")}</div>
+            </td>
+            <td>
+              <div class="font-semibold">${owner ? escapeHtml(owner.name || "Owner") : "—"}</div>
+              <div class="muted text-sm">${escapeHtml(ownerLine)}</div>
+            </td>
+            <td>${statusTag(r.status)}</td>
+            <td>${activeTag(r.is_active)}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input
+                  class="input"
+                  data-billing="1"
+                  data-id="${r.id}"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value="${commissionPct}"
+                  placeholder="10.00"
+                  style="height:34px; width:96px;"
+                  title="Commission rate (%)"
+                />
+                <div class="muted text-sm">%</div>
+              </div>
+            </td>
+            <td class="muted text-sm">${escapeHtml(created)}</td>
+            <td style="text-align:right;">${actions}</td>
+          </tr>
+        `;
+      }).join("");
+
+      if (preserveScroll) window.scrollTo(0, scrollY);
+    }
+
+    function openOwnerModal(restaurantId, restaurantName) {
+      pendingOwnerRestaurantId = restaurantId;
+      ownerModalTitle.textContent = `Link owner • ${restaurantName || ""}`.trim();
+      ownerSearch.value = "";
+      ownerList.innerHTML = `<div class="muted text-sm">Search for an owner account.</div>`;
+      ownerModal.classList.add("show");
+      renderOwnerCandidates("");
+    }
+
+    function closeOwnerModal() {
+      ownerModal.classList.remove("show");
+      pendingOwnerRestaurantId = null;
+    }
+
+    function openCreateRestaurantModal() {
+      createRestaurantForm.reset();
+      document.getElementById("createRestaurantBranchName").value = "Main Branch";
+      document.getElementById("createRestaurantCommission").value = "10";
+      document.getElementById("createRestaurantActivate").checked = true;
+      createRestaurantLogoFile.value = "";
+      if (selectedRestaurantLogoObjectUrl) URL.revokeObjectURL(selectedRestaurantLogoObjectUrl);
+      selectedRestaurantLogoObjectUrl = null;
+      createRestaurantLogoPreviewImg.removeAttribute("src");
+      createRestaurantLogoPreview.style.display = "none";
+      createRestaurantModal.classList.add("show");
+    }
+
+    function closeCreateRestaurantModal() {
+      if (selectedRestaurantLogoObjectUrl) URL.revokeObjectURL(selectedRestaurantLogoObjectUrl);
+      selectedRestaurantLogoObjectUrl = null;
+      createRestaurantLogoPreviewImg.removeAttribute("src");
+      createRestaurantLogoPreview.style.display = "none";
+      createRestaurantLogoFile.value = "";
+      createRestaurantModal.classList.remove("show");
+    }
+
+    async function renderOwnerCandidates(search) {
+      if (!pendingOwnerRestaurantId) return;
+      ownerList.innerHTML = `<div class="skeleton" style="height:32px;"></div>`;
+      const { data, error } = await searchOwnerCandidates(search, 30);
+      if (error) {
+        ownerList.innerHTML = `<div class="muted text-sm">Error: ${error.message}</div>`;
+        return;
+      }
+      if (!data || !data.length) {
+        ownerList.innerHTML = `<div class="muted text-sm">No matching users found.</div>`;
+        return;
+      }
+      ownerList.innerHTML = data.map((u) => `
+        <button class="btn ghost" type="button" data-owner="${u.id}" style="width:100%; justify-content:flex-start; gap:12px;">
+          <div style="flex:1;">
+            <div class="font-semibold">${escapeHtml(u.name || "User")}</div>
+            <div class="muted text-xs">${escapeHtml(u.phone || "No phone")} • ${escapeHtml(u.role || "customer")}</div>
+          </div>
+          <span class="muted text-xs">${escapeHtml(u.id.slice(0, 8))}</span>
+        </button>
+      `).join("");
+      ownerList.querySelectorAll("[data-owner]").forEach((btn) => {
+        btn.addEventListener("click", () => assignOwner(btn.dataset.owner));
+      });
+    }
+
+    async function assignOwner(userId) {
+      if (!pendingOwnerRestaurantId) return;
+      const { error } = await linkOwnerToRestaurant({ restaurantId: pendingOwnerRestaurantId, userId });
+      if (error) {
+        showToast(error.message || "Failed to link owner");
+        return;
+      }
+      showToast("Owner linked");
+      closeOwnerModal();
+      load({ preserveScroll: true });
+    }
+
+    function escapeHtml(s) {
+      return String(s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>

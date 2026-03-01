@@ -88,7 +88,7 @@
   <div id="toast" class="toast"></div>
 
   <script type="module">
-	    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
 	    import { requireAuth, getClient } from "../js/auth.js";
 	    import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
 	    import { fmtMoney } from "../js/utils.js";
@@ -98,9 +98,10 @@
     renderSidebar("promotions.html");
     mountThemeToggle();
     const { profile } = await requireAuth();
+    mountStatusBanner();
     mountNotifications({ supabase: getClient() });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(profile.role) });
 	    onBranchChange(() => {
 	      closeModal();
 	      load();
@@ -114,7 +115,7 @@
 	    const promoBranch = document.getElementById("promoBranch");
 	    let editingId = null;
 	    let active = true;
-	    const isSuper = profile.role === "super_admin";
+		    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(profile.role);
 
     document.getElementById("newPromo").addEventListener("click", () => openModal());
     document.getElementById("closeModal").addEventListener("click", closeModal);

@@ -76,11 +76,11 @@
     const supabase = getClient();
     mountNotifications({ supabase });
 
-    const isSuper = session.profile.role === "super_admin";
-    document.getElementById("superOnly").style.display = isSuper ? "none" : "";
+	    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(session.profile.role);
+	    document.getElementById("superOnly").style.display = isSuper ? "none" : "";
 
-    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: isSuper });
+	    await initBranchState({ role: session.profile.role, profileBranchId: session.profile.branch_id, profileRestaurantId: session.profile.restaurant_id });
+	    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(session.profile.role) });
 
     if (!isSuper) {
       document.getElementById("tableCard").style.display = "none";

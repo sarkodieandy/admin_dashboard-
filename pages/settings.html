@@ -220,8 +220,8 @@
     const supabase = createClient();
     const { profile } = await requireAuth();
     mountNotifications({ supabase });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
-    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: profile.role === "super_admin" });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
+    registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), { allowAll: ["super_admin", "platform_admin"].includes(profile.role) });
 
     const stateKey = "adminSettingsLocal";
     const state = JSON.parse(localStorage.getItem(stateKey) || "{}");

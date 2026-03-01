@@ -14,22 +14,61 @@ export function showToast(message) {
 }
 
 export function renderSidebar(activeId) {
-  const items = [
-    ["dashboard.html", "Dashboard", "📊"],
-    ["orders.html", "Orders", "🧾"],
-    ["chats.html", "Chats", "💬"],
-    ["menu.html", "Menu", "🍔"],
-    ["customers.html", "Customers", "👥"],
-    ["riders.html", "Riders", "🛵"],
-    ["branches.html", "Branches", "🏠"],
-    ["delivery-settings.html", "Delivery", "🚚"],
-    ["promotions.html", "Promotions", "🏷️"],
-    ["reviews-support.html", "Reviews", "⭐"],
-    ["staff-roles.html", "Staff", "🧑‍🍳"],
-    ["audit-logs.html", "Audit", "🧾"],
-    ["analytics.html", "Analytics", "📈"],
-    ["settings.html", "Settings", "⚙️"],
-  ];
+  const role = (localStorage.getItem("admin_role") || "").trim();
+
+  const menus = {
+    platform_admin: [
+      ["global-overview.html", "Global Overview", "🌐"],
+      ["dashboard.html", "Overview", "📊"],
+      ["restaurants.html", "Restaurants", "🏪"],
+      ["branches.html", "Branches", "🏠"],
+      ["orders.html", "Orders", "🧾"],
+      ["deliveries.html", "Deliveries", "🛵"],
+      ["riders.html", "Riders", "🛵"],
+      ["commissions.html", "Revenue & Commissions", "💸"],
+      ["users.html", "Users", "👥"],
+      ["analytics.html", "Analytics", "📈"],
+      ["settings.html", "Settings", "⚙️"],
+    ],
+    restaurant_owner: [
+      ["dashboard.html", "Overview", "📊"],
+      ["branches.html", "Branches", "🏠"],
+      ["orders.html", "Orders", "🧾"],
+      ["menu.html", "Menu", "🍔"],
+      ["riders.html", "Riders", "🛵"],
+      ["customers.html", "Customers", "👥"],
+      ["chats.html", "Chats", "💬"],
+      ["analytics.html", "Analytics", "📈"],
+      ["staff-roles.html", "Staff", "🧑‍🍳"],
+      ["settings.html", "Settings", "⚙️"],
+    ],
+    branch_admin: [
+      ["orders.html", "Orders", "🧾"],
+      ["menu.html", "Menu", "🍔"],
+      ["chats.html", "Chats", "💬"],
+      ["settings.html", "Settings", "⚙️"],
+    ],
+    staff: [
+      ["orders.html", "Orders", "🧾"],
+      ["menu.html", "Menu", "🍔"],
+      ["chats.html", "Chats", "💬"],
+      ["settings.html", "Settings", "⚙️"],
+    ],
+    super_admin: [
+      ["dashboard.html", "Overview", "📊"],
+      ["restaurants.html", "Restaurants", "🏪"],
+      ["branches.html", "Branches", "🏠"],
+      ["orders.html", "Orders", "🧾"],
+      ["deliveries.html", "Deliveries", "🛵"],
+      ["riders.html", "Riders", "🛵"],
+      ["commissions.html", "Revenue & Commissions", "💸"],
+      ["users.html", "Users", "👥"],
+      ["analytics.html", "Analytics", "📈"],
+      ["settings.html", "Settings", "⚙️"],
+    ],
+  };
+
+  const items = menus[role] || menus.staff;
   const nav = document.querySelector(".sidebar .nav");
   if (!nav) return;
   nav.innerHTML = items
@@ -40,11 +79,50 @@ export function renderSidebar(activeId) {
     .join("");
 
   mountMobileSidebar();
+
+  // Allow auth layer to re-render the sidebar after it refreshes session/profile.
+  try {
+    window.__rerenderSidebar = () => renderSidebar(activeId);
+  } catch {}
 }
 
 export function renderTopbar(title) {
   const t = document.getElementById("pageTitle");
   if (t) t.textContent = title;
+}
+
+// Mounts a status banner if the restaurant is pending/suspended (non-platform roles).
+export function mountStatusBanner() {
+  const block = window.__restaurantBlock;
+  const role = (localStorage.getItem("admin_role") || "").trim();
+  if (!block || ["platform_admin", "super_admin"].includes(role)) return;
+  if (document.getElementById("statusBanner")) return;
+  const banner = document.createElement("div");
+  banner.id = "statusBanner";
+  banner.className = "status-banner";
+  banner.innerHTML = `
+    <div class="status-banner__icon">⚠️</div>
+    <div>
+      <div class="status-banner__title">Your restaurant is ${block.status || "pending"}.</div>
+      <div class="status-banner__body">You can browse data but actions like managing orders or menu are disabled until approval.</div>
+    </div>
+  `;
+  const layout = document.querySelector(".page");
+  if (layout) {
+    layout.prepend(banner);
+  } else {
+    document.body.prepend(banner);
+  }
+  document.body.classList.add("status-blocked");
+
+  // Hard-disable interactive controls except those explicitly allowed.
+  const allowSelectors = ["#logoutBtn", "#logoutBtnInline", "#refreshBtn", "#refreshBtnInline", ".status-banner button"];
+  const allow = (el) => allowSelectors.some((sel) => el.matches(sel)) || el.closest("#statusBanner");
+  document.querySelectorAll("button, input, select, textarea").forEach((el) => {
+    if (allow(el)) return;
+    el.dataset._prevDisabled = el.disabled ? "1" : "0";
+    el.disabled = true;
+  });
 }
 
 export function mountMobileSidebar() {

@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Partner With Us • Finger Licking</title>
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pages.css" />
+  <script src="../env.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <style>
+    body {
+      min-height: 100vh;
+      color: #f8fafc;
+      background:
+        linear-gradient(135deg, rgba(2, 6, 23, 0.86), rgba(2, 6, 23, 0.7)),
+        radial-gradient(900px 520px at 18% 12%, rgba(59,130,246,0.18), transparent 60%),
+        url("https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat fixed;
+    }
+    .partner-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 18px 72px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 18px;
+    }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .panel {
+      border-radius: 18px;
+      background: rgba(15,23,42,0.78);
+      border: 1px solid rgba(148,163,184,0.22);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+      backdrop-filter: blur(12px);
+      padding: 22px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      background: rgba(59,130,246,0.16);
+      color: #cbd5f5;
+      font-weight: 700;
+      letter-spacing: -0.1px;
+    }
+    .muted-inline { color: rgba(226,232,240,0.86); font-size: var(--text-sm); }
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .stat-card {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(148,163,184,0.18);
+    }
+    .step-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: center;
+      color: var(--color-muted);
+    }
+    .step-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(59,130,246,0.18);
+      color: #e0e7ff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .form-wrap {
+      display: grid;
+      gap: 14px;
+    }
+    .field .label {
+      color: rgba(226,232,240,0.88);
+    }
+    .input {
+      background: rgba(2, 6, 23, 0.42);
+      border: 1px solid rgba(148,163,184,0.35);
+      color: #f8fafc;
+    }
+    .input::placeholder { color: rgba(226,232,240,0.5); }
+    .success-panel {
+      display: none;
+      gap: 10px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(34,197,94,0.35);
+      background: rgba(34,197,94,0.12);
+      color: #dcfce7;
+      font-size: var(--text-sm);
+      position: relative;
+      overflow: hidden;
+      animation: successPop 380ms ease;
+    }
+    .success-panel strong {
+      color: #86efac;
+      font-size: var(--text-base);
+      letter-spacing: -0.2px;
+    }
+    .success-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .success-check {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(34,197,94,0.22);
+      border: 1px solid rgba(34,197,94,0.5);
+      box-shadow: 0 10px 24px rgba(34,197,94,0.28);
+      font-size: 20px;
+      animation: checkBounce 480ms ease;
+    }
+    .success-glow {
+      position: absolute;
+      inset: -40% 40% auto -40%;
+      height: 160%;
+      background: radial-gradient(circle, rgba(34,197,94,0.28), transparent 60%);
+      opacity: 0.6;
+      pointer-events: none;
+      animation: glowSweep 1.2s ease;
+    }
+    @keyframes successPop {
+      0% { transform: translateY(8px) scale(0.98); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    @keyframes checkBounce {
+      0% { transform: scale(0.7); opacity: 0; }
+      60% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+    @keyframes glowSweep {
+      0% { transform: translateX(-20%); opacity: 0; }
+      40% { opacity: 0.7; }
+      100% { transform: translateX(10%); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="partner-shell">
+    <div style="margin-bottom: 18px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="badge">🥡 Finger Licking Partners</div>
+      <span class="muted-inline">List your restaurant on the marketplace in minutes. Approval required before going live.</span>
+      <span style="flex:1"></span>
+      <a id="backToLogin" class="btn ghost" href="login.html">↩︎ Back to Login</a>
+    </div>
+
+    <div class="grid">
+      <div class="panel" style="position:relative; overflow:hidden;">
+        <div style="position:absolute; inset:0; opacity:0.2; background:radial-gradient(320px 240px at 30% 28%, rgba(96,165,250,0.6), transparent);"></div>
+        <div style="position:relative;">
+          <h1 class="font-extrabold" style="margin:0; letter-spacing:-0.4px;">Join the marketplace</h1>
+          <p class="muted-inline" style="margin-top:6px; max-width: 520px;">Create your owner account, submit your restaurant, and we’ll review it. You’ll get a default branch and billing config automatically.</p>
+
+          <div class="stat-row">
+            <div class="stat-card">
+              <div class="muted-inline">Status on submit</div>
+              <div class="font-bold" style="font-size: var(--text-xl); margin-top:4px; color:#e0f2fe;">Pending</div>
+              <div class="muted-inline">Platform admin approves before you operate.</div>
+            </div>
+            <div class="stat-card">
+              <div class="muted-inline">Access</div>
+              <div class="font-bold" style="font-size: var(--text-xl); margin-top:4px; color:#e5e7eb;">Owner Dashboard</div>
+              <div class="muted-inline">Branches, menu, orders, chats.</div>
+            </div>
+            <div class="stat-card">
+              <div class="muted-inline">Billing</div>
+              <div class="font-bold" style="font-size: var(--text-xl); margin-top:4px; color:#facc15;">10% default</div>
+              <div class="muted-inline">Commission editable by platform admin.</div>
+            </div>
+          </div>
+
+          <div class="step-list">
+            <div class="step">
+              <div class="step-dot">1</div>
+              <div>Fill details & create your owner account.</div>
+            </div>
+            <div class="step">
+              <div class="step-dot">2</div>
+              <div>We generate your restaurant, default branch, and billing row.</div>
+            </div>
+            <div class="step">
+              <div class="step-dot">3</div>
+              <div>Platform admin approves to go live.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <form id="partnerForm" class="form-wrap">
+          <div class="form-grid">
+            <div class="field">
+              <label class="label" for="restaurantName">Restaurant name</label>
+              <input id="restaurantName" name="restaurantName" class="input" required placeholder="e.g. Spice Hub" />
+            </div>
+            <div class="field">
+              <label class="label" for="ownerName">Owner name</label>
+              <input id="ownerName" name="ownerName" class="input" required placeholder="Your full name" />
+            </div>
+            <div class="field">
+              <label class="label" for="phone">Phone</label>
+              <input id="phone" name="phone" class="input" required placeholder="+1 555 123 4567" />
+            </div>
+            <div class="field">
+              <label class="label" for="location">Location</label>
+              <input id="location" name="location" class="input" placeholder="City / Area" />
+            </div>
+            <div class="field">
+              <label class="label" for="email">Work email</label>
+              <input id="email" name="email" class="input" type="email" required placeholder="you@restaurant.com" />
+            </div>
+            <div class="field">
+              <label class="label" for="password">Password</label>
+              <input id="password" name="password" class="input" type="password" required placeholder="••••••••" />
+            </div>
+          </div>
+
+          <div class="muted-inline">By signing up, you agree to the platform terms. Your account will remain pending until a platform admin approves it.</div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button id="submitBtn" class="btn primary" type="submit">
+              <span id="submitLabel">Create partner account</span>
+            </button>
+            <span id="formStatus" class="muted-inline"></span>
+          </div>
+          <div id="formError" class="text-sm" style="color:#fecaca; min-height:18px;"></div>
+          <div id="successPanel" class="success-panel">
+            <div class="success-glow" aria-hidden="true"></div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="success-check">✓</div>
+              <div>
+                <strong>Application received</strong>
+                <div>We created your owner account and submitted your restaurant for review.</div>
+              </div>
+            </div>
+            <div class="muted-inline">Next: wait for platform approval, then sign in to manage your menu and orders.</div>
+            <div class="success-actions">
+              <a id="successLoginBtn" class="btn ghost" href="login.html">Go to Login</a>
+              <button id="successCopyBtn" class="btn" type="button">Copy Support Message</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    const supabase = window.supabase.createClient(window.ENV.SUPABASE_URL, window.ENV.SUPABASE_ANON_KEY);
+
+    const form = document.getElementById("partnerForm");
+    const formError = document.getElementById("formError");
+    const formStatus = document.getElementById("formStatus");
+    const submitBtn = document.getElementById("submitBtn");
+    const submitLabel = document.getElementById("submitLabel");
+    const successPanel = document.getElementById("successPanel");
+    const successLoginBtn = document.getElementById("successLoginBtn");
+    const successCopyBtn = document.getElementById("successCopyBtn");
+    document.getElementById("backToLogin").addEventListener("click", (e) => {
+      if (e.defaultPrevented) return;
+      window.location.href = "login.html";
+    });
+    successLoginBtn.addEventListener("click", (e) => {
+      if (e.defaultPrevented) return;
+      window.location.href = "login.html";
+    });
+
+    const showToast = (msg) => {
+      let el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "toast show";
+      setTimeout(() => el.classList.remove("show"), 2000);
+    };
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      formError.textContent = "";
+      formStatus.textContent = "";
+      successPanel.style.display = "none";
+      submitBtn.disabled = true;
+      submitLabel.textContent = "Submitting…";
+
+      const name = document.getElementById("restaurantName").value.trim();
+      const ownerName = document.getElementById("ownerName").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+      const location = document.getElementById("location").value.trim();
+      const email = document.getElementById("email").value.trim().toLowerCase();
+      const password = document.getElementById("password").value;
+
+      if (!name || !ownerName || !phone || !email || !password) {
+        formError.textContent = "Please fill all required fields.";
+        submitBtn.disabled = false;
+        submitLabel.textContent = "Create partner account";
+        return;
+      }
+
+      try {
+        // 1) Sign up auth user
+        const { data: signUp, error: signErr } = await supabase.auth.signUp({ email, password });
+        if (signErr) throw signErr;
+        const userId = signUp.user?.id;
+        if (!userId) throw new Error("Signup failed: no user id");
+
+        // Ensure we have a session for RLS-protected inserts.
+        const session = signUp.session ?? (await supabase.auth.getSession()).data?.session;
+        if (!session) {
+          throw new Error("Signup requires email confirmation. Please verify your email, then log in to finish onboarding.");
+        }
+
+        // 2) Insert restaurant (pending)
+        const slug = slugify(name);
+        let restaurantPayload = {
+          name,
+          slug,
+          phone,
+          email,
+          status: "pending",
+          is_active: true,
+          owner_id: userId,
+        };
+        if (location) restaurantPayload.location = location; // will be ignored if column missing
+
+        let { data: restaurant, error: rErr } = await supabase
+          .from("restaurants")
+          .insert(restaurantPayload)
+          .select("id")
+          .maybeSingle();
+
+        if (rErr) {
+          // Retry without location if column missing
+          const msg = String(rErr.message || "").toLowerCase();
+          const missingLoc = msg.includes("location");
+          if (missingLoc) {
+            const { data, error } = await supabase
+              .from("restaurants")
+              .insert({ ...restaurantPayload, location: undefined })
+              .select("id")
+              .maybeSingle();
+            restaurant = data;
+            rErr = error;
+          }
+        }
+        if (rErr || !restaurant?.id) throw rErr || new Error("Could not create restaurant");
+        const restaurantId = restaurant.id;
+
+        // 3) Insert profile
+        const { error: pErr } = await supabase.from("profiles").upsert(
+          {
+            id: userId,
+            role: "restaurant_owner",
+            name: ownerName,
+            phone,
+            restaurant_id: restaurantId,
+            is_active: true,
+          },
+          { onConflict: "id" },
+        );
+        if (pErr) throw pErr;
+
+        // 4) Default branch
+        const { error: bErr } = await supabase.from("branches").insert({
+          name: "Main Branch",
+          is_active: true,
+          restaurant_id: restaurantId,
+        });
+        if (bErr) throw bErr;
+
+        // 5) Default billing
+        const { error: billErr } = await supabase.from("restaurant_billing").insert({
+          restaurant_id: restaurantId,
+          commission_rate: 0.10,
+          is_active: true,
+        });
+        if (billErr && String(billErr.message || "").toLowerCase().includes("duplicate")) {
+          // ignore if already exists
+        } else if (billErr) {
+          throw billErr;
+        }
+
+        formStatus.textContent = "Submitted! Restaurant is pending approval.";
+        formStatus.style.color = "var(--color-success, #22c55e)";
+        showToast("Submitted! We’re reviewing your restaurant.");
+        form.reset();
+        submitLabel.textContent = "Created ✔";
+        submitBtn.disabled = true;
+        successPanel.style.display = "grid";
+        successCopyBtn.onclick = async () => {
+          const message = `Partner signup received for ${name}. Email: ${email}. Status: pending approval.`;
+          try {
+            await navigator.clipboard.writeText(message);
+            showToast("Copied support message");
+          } catch {
+            showToast("Copy failed");
+          }
+        };
+      } catch (err) {
+        console.error("partner_signup_error", err);
+        formError.textContent = err?.message || "Something went wrong.";
+        showToast("Signup failed");
+      } finally {
+        if (!submitBtn.disabled) {
+          submitBtn.disabled = false;
+          submitLabel.textContent = "Create partner account";
+        }
+      }
+    });
+
+    function slugify(str) {
+      return str
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "")
+        .slice(0, 60);
+    }
+  </script>
+</body>
+</html>

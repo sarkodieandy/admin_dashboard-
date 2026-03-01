@@ -37,6 +37,10 @@
       color: #0d47a1;
       font-size: 12px;
       font-weight: 600;
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   </style>
 </head>
@@ -172,7 +176,7 @@
   </div>
 
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import {
       fetchOrdersAdvanced,
@@ -208,12 +212,13 @@
     renderSidebar("orders.html");
     mountThemeToggle();
     const { user, profile } = await requireAuth();
+    mountStatusBanner();
     const supabase = getClient();
     mountNotifications({ supabase });
 
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
     registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
-      allowAll: profile.role === "super_admin",
+      allowAll: ["super_admin", "platform_admin"].includes(profile.role),
     });
     onBranchChange(() => {
       loadOrders();
@@ -234,6 +239,7 @@
     let currentStatus = "all";
     let currentOrders = [];
     let currentOrderId = null;
+    let currentOrder = null;
     let currentDelivery = null;
     const assignModal = document.getElementById("assignRiderModal");
     const assignRiderList = document.getElementById("assignRiderList");
@@ -369,6 +375,7 @@
         return;
       }
       const o = order.data;
+      currentOrder = o;
       const address = o.address_snapshot?.address || o.address_snapshot?.label || "No address";
       const itemHtml = (items.data || [])
         .map(
@@ -492,13 +499,16 @@
 
   async function openAssignRiderModal() {
     if (!currentOrderId) return;
-    if (!ridersCache.length) {
-      const { data, error } = await fetchRiders({ activeOnly: true });
+    const rawBranch = currentOrder?.branch_id || getSelectedBranchId();
+    const branchId = rawBranch && rawBranch !== "all" ? rawBranch : undefined;
+    if (!ridersCache.length || ridersCache.__branchId !== (branchId || "all")) {
+      const { data, error } = await fetchRiders({ activeOnly: true, branchId });
       if (error) {
         showToast(error.message);
         return;
       }
       ridersCache = data || [];
+      ridersCache.__branchId = branchId || "all";
     }
     renderAssignableRiders(assignRiderSearch.value.trim());
     assignModal.classList.add("show");
@@ -541,6 +551,15 @@
       assigned_at: new Date().toISOString(),
     });
     if (error) {
+      const msg = String(error.message || "");
+      if (error.code === "42P17" || msg.toLowerCase().includes("infinite recursion")) {
+        showToast("Database RLS recursion. Run migration 0066_fix_profiles_restaurant_select_nonrecursive.sql.");
+        return;
+      }
+      if (msg.toLowerCase().includes("non volatile") || msg.toLowerCase().includes("non-volatile")) {
+        showToast("RPC volatility error. Run migration 0072_fix_rpc_volatility.sql.");
+        return;
+      }
       showToast(error.message);
       return;
     }

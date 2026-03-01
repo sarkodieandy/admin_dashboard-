@@ -39,6 +39,10 @@
       font-size: 12px;
       font-weight: 600;
       margin-right: 8px;
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   </style>
 </head>
@@ -82,8 +86,8 @@
 	              <option value="">All categories</option>
 	            </select>
 	            <select id="filterAvailability" class="input" style="max-width:160px;">
+	              <option value="available" selected>Available</option>
 	              <option value="">All availability</option>
-	              <option value="available">Available</option>
 	              <option value="soldout">Sold out</option>
 	              <option value="inactive">Inactive</option>
 	            </select>
@@ -199,12 +203,13 @@
 
   <div id="toast" class="toast"></div>
   <script type="module">
-    import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
+    import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
     import { requireAuth, getClient } from "../js/auth.js";
     import {
       fetchMenu,
       updateMenuItem,
       insertMenuItem,
+      deleteMenuItem,
       insertCategory,
       updateCategory,
       fetchAddons,
@@ -213,7 +218,7 @@
     } from "../js/api.js";
 	    import { fmtMoney } from "../js/utils.js";
 	    import { mountNotifications } from "../js/notifications_ui.js";
-	    import { menuImageUrl, uploadMenuImageFile } from "../js/storage.js";
+	    import { menuImageUrl, normalizeMenuImageValue, uploadMenuImageFile } from "../js/storage.js";
 	    import {
 	      initBranchState,
 	      registerBranchSwitcher,
@@ -226,10 +231,11 @@
     renderSidebar("menu.html");
     mountThemeToggle();
     const { profile } = await requireAuth();
+    mountStatusBanner();
     mountNotifications({ supabase: getClient() });
-    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id });
+    await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
     registerBranchSwitcher(document.getElementById("branchSwitcherSelect"), {
-      allowAll: profile.role === "super_admin",
+      allowAll: ["super_admin", "platform_admin"].includes(profile.role),
     });
     onBranchChange(() => loadData());
 
@@ -256,7 +262,7 @@
 	    let editingItemId = null;
 	    let editingItemBranchId = null;
 	    let selectedImageObjectUrl = null;
-	    const isSuper = profile.role === "super_admin";
+	    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(profile.role);
 
 	    document.getElementById("reloadMenu").addEventListener("click", loadData);
 	    document.getElementById("refreshAddons").addEventListener("click", loadAddons);
@@ -290,7 +296,6 @@
 	      e.preventDefault();
 	      const rawBranch = getSelectedBranchId();
 	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-	      if (!branchId && !editingItemId) return showToast("Select a branch before adding items");
 	      const fd = new FormData(e.target);
 	      const payload = Object.fromEntries(fd.entries());
 	      const id = String(payload.id || "").trim() || null;
@@ -299,8 +304,8 @@
 	      payload.is_sold_out = fd.get("is_sold_out") === "on";
 
 	      const file = itemImageFile.files?.[0] || null;
-	      const urlField = String(payload.image_url || "").trim();
-	      payload.image_url = urlField ? urlField : null;
+	      const urlField = normalizeMenuImageValue(payload.image_url);
+	      payload.image_url = urlField || null;
 
 	      const isEdit = Boolean(id);
 	      let itemId = id;
@@ -326,8 +331,10 @@
 	      if (file) {
 	        const up = await uploadMenuImageFile({ file, branchId: uploadBranchId, itemId });
 	        if (up.error) return showToast(up.error.message);
-	        const u = await updateMenuItem(itemId, { image_url: up.data.path });
+	        const storedImageUrl = normalizeMenuImageValue(up.data.publicUrl || up.data.path);
+	        const u = await updateMenuItem(itemId, { image_url: storedImageUrl });
 	        if (u.error) return showToast(u.error.message);
+	        itemForm.querySelector("[name=image_url]").value = storedImageUrl;
 	      }
 
 	      toggleModal(itemModal, false);
@@ -405,21 +412,37 @@
 	    function refreshItemCategorySelect(branchId) {
 	      const select = document.getElementById("itemCatSelect");
 	      const list = branchId ? categoriesForBranch(branchId) : [];
-	      select.innerHTML = list.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+	      if (!branchId) {
+	        select.disabled = true;
+	        select.innerHTML = `<option value="">Select branch first</option>`;
+	        return;
+	      }
+	      if (!list.length) {
+	        select.disabled = true;
+	        select.innerHTML = `<option value="">No categories for this branch</option>`;
+	        return;
+	      }
+	      select.disabled = false;
+	      select.innerHTML = list
+	        .map((c) => `<option value="${c.id}">${c.name}</option>`)
+	        .join("");
 	    }
 
 	    function openItemModal(item = null) {
 	      const rawBranch = getSelectedBranchId();
 	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
-	      if (!branchId && !item?.branch_id) return showToast("Select a branch first");
+	      const isAll = rawBranch === "all";
+	      if (!branchId && !item?.branch_id && !(isSuper && isAll)) {
+	        return showToast("Select a branch first");
+	      }
 
 	      itemForm.reset();
 	      editingItemId = item?.id || null;
 	      editingItemBranchId = item?.branch_id || branchId;
-	      const isAll = rawBranch === "all";
 	      if (isSuper && isAll && !editingItemId) {
+	        const defaultBranchId = editingItemBranchId || getBranches()[0]?.id || "";
 	        itemBranchRow.style.display = "";
-	        fillBranchSelect(itemBranchSelect, { placeholder: "Select branch", selected: editingItemBranchId || "" });
+	        fillBranchSelect(itemBranchSelect, { placeholder: "Select branch", selected: defaultBranchId });
 	        refreshItemCategorySelect(itemBranchSelect.value);
 	        itemBranchSelect.onchange = () => refreshItemCategorySelect(itemBranchSelect.value);
 	      } else {
@@ -463,8 +486,9 @@
 	      const form = document.getElementById("categoryForm");
 	      form.reset();
 	      if (isSuper && isAll) {
+	        const defaultBranchId = getBranches()[0]?.id || "";
 	        categoryBranchRow.style.display = "";
-	        fillBranchSelect(categoryBranchSelect, { placeholder: "Select branch" });
+	        fillBranchSelect(categoryBranchSelect, { placeholder: "Select branch", selected: defaultBranchId });
 	      } else {
 	        categoryBranchRow.style.display = "none";
 	      }
@@ -475,10 +499,9 @@
 
     async function loadData() {
       const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       catList.innerHTML = `<div class="skeleton" style="height:24px;"></div>`;
       itemsTbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-      const { cats, items: it } = await fetchMenu({ branchId });
+      const { cats, items: it } = await fetchMenu({ branchId: rawBranch });
       if (cats.error) { catList.innerHTML = `<div class="muted">Error: ${cats.error.message}</div>`; return; }
       if (it.error) { itemsTbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${it.error.message}</td></tr>`; return; }
       categories = cats.data || [];
@@ -539,7 +562,7 @@
 	      if (branchId) {
 	        refreshItemCategorySelect(branchId);
 	      } else {
-	        document.getElementById("itemCatSelect").innerHTML = "";
+	        refreshItemCategorySelect(null);
 	      }
 	    }
 
@@ -621,9 +644,13 @@
 	      itemsTbody.querySelectorAll("[data-delete]").forEach((btn) =>
 	        btn.addEventListener("click", async () => {
 	          if (!confirm("Delete this item?")) return;
-	          const { error } = await updateMenuItem(btn.dataset.delete, { is_active: false });
+	          const id = btn.dataset.delete;
+	          const { error } = await deleteMenuItem(id);
 	          if (error) return showToast(error.message);
-	          showToast("Item hidden");
+	          items = items.filter((item) => item.id !== id);
+	          renderCategories();
+	          renderItems();
+	          showToast("Item deleted");
 	          loadData();
 	        })
 	      );
@@ -644,10 +671,9 @@
 
     async function loadAddons() {
       const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const list = document.getElementById("addonList");
       list.innerHTML = `<div class="skeleton" style="height:24px;"></div>`;
-      const { data, error } = await fetchAddons({ branchId });
+      const { data, error } = await fetchAddons({ branchId: rawBranch });
       if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       addons = data || [];
       if (!addons.length) { list.innerHTML = `<div class="muted text-sm">No add-ons yet</div>`; return; }

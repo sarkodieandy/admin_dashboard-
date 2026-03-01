@@ -52,8 +52,42 @@
         align-items: center;
         gap: 8px;
       }
+      .branch-editor {
+        display: none;
+        margin-bottom: var(--space-3);
+        padding: 18px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        background: var(--color-panel);
+        box-shadow: var(--shadow-sm);
+      }
+      .branch-editor.show {
+        display: block;
+        animation: fade-slide var(--dur-med) var(--ease-soft);
+      }
+      .branch-editor__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .branch-editor__actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 8px;
+      }
       @media (max-width: 720px) {
         .hero { flex-direction: column; }
+        .branch-editor__head {
+          flex-direction: column;
+        }
+        .branch-editor__actions {
+          flex-direction: column-reverse;
+        }
+        .branch-editor__actions .btn {
+          width: 100%;
+        }
       }
     </style>
   </head>
@@ -83,7 +117,11 @@
                 Create and control outlets. Branch admins and staff are scoped to their branch via RLS.
               </div>
             </div>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+              <div id="restaurantFilterWrap" style="display:none; min-width:220px;">
+                <div class="muted text-xs" style="margin-bottom:6px;">Restaurant</div>
+                <select class="input" id="restaurantFilter" style="height:38px;"></select>
+              </div>
               <button class="btn ghost" id="refreshBtn">Reload</button>
             </div>
           </div>
@@ -108,6 +146,54 @@
             </div>
           </div>
 
+          <section class="branch-editor" id="branchEditor" aria-hidden="true">
+            <div class="branch-editor__head">
+              <div>
+                <div class="font-semibold" id="branchModalTitle">Add branch</div>
+                <div class="muted text-sm" id="branchModalSubtitle">Branch details</div>
+              </div>
+              <button class="btn ghost" id="closeBranchModal" type="button">Close</button>
+            </div>
+
+            <form id="branchForm">
+              <div id="restaurantField" style="display:none;">
+                <label class="label">Restaurant</label>
+                <select class="input" id="branchRestaurant" style="height:40px;"></select>
+                <div style="height:10px;"></div>
+              </div>
+              <label class="label">Name</label>
+              <input class="input" id="branchName" required />
+              <div style="height:10px;"></div>
+              <label class="label">Address</label>
+              <textarea class="textarea" id="branchAddress" rows="2"></textarea>
+              <div style="height:10px;"></div>
+              <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
+                <div>
+                  <label class="label">Lat</label>
+                  <input class="input" id="branchLat" type="number" step="any" />
+                </div>
+                <div>
+                  <label class="label">Lng</label>
+                  <input class="input" id="branchLng" type="number" step="any" />
+                </div>
+              </div>
+              <div style="height:12px;"></div>
+              <label class="pill-toggle">
+                <input type="checkbox" id="branchIsActive" checked />
+                <span>Active branch</span>
+              </label>
+              <div style="height:10px;"></div>
+              <label class="pill-toggle">
+                <input type="checkbox" id="branchIsOpen" checked />
+                <span>Open now</span>
+              </label>
+              <div class="branch-editor__actions">
+                <button class="btn ghost" id="cancelBranchEdit" type="button">Cancel</button>
+                <button class="btn primary" id="saveBranchBtn" type="submit">Save branch</button>
+              </div>
+            </form>
+          </section>
+
 	          <div class="card" style="padding:0;">
 	            <div class="table-wrap">
 	              <table class="table" id="branchesTable">
@@ -129,48 +215,6 @@
 	      </main>
 	    </div>
 
-    <div class="modal-backdrop" id="branchModal">
-      <div class="modal">
-        <header>
-          <div>
-            <div class="font-semibold" id="branchModalTitle">Add branch</div>
-            <div class="muted text-sm" id="branchModalSubtitle">Branch details</div>
-          </div>
-          <button class="btn ghost" id="closeBranchModal">✕</button>
-        </header>
-        <form id="branchForm">
-          <label class="label">Name</label>
-          <input class="input" id="branchName" required />
-          <div style="height:10px;"></div>
-          <label class="label">Address</label>
-          <textarea class="textarea" id="branchAddress" rows="2"></textarea>
-          <div style="height:10px;"></div>
-          <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
-            <div>
-              <label class="label">Lat</label>
-              <input class="input" id="branchLat" type="number" step="any" />
-            </div>
-            <div>
-              <label class="label">Lng</label>
-              <input class="input" id="branchLng" type="number" step="any" />
-            </div>
-          </div>
-          <div style="height:12px;"></div>
-          <label class="pill-toggle">
-            <input type="checkbox" id="branchIsActive" checked />
-            <span>Active branch</span>
-          </label>
-          <div style="height:10px;"></div>
-          <label class="pill-toggle">
-            <input type="checkbox" id="branchIsOpen" checked />
-            <span>Open now</span>
-          </label>
-          <div style="height:16px;"></div>
-          <button class="btn primary" style="width:100%" type="submit">Save branch</button>
-        </form>
-      </div>
-    </div>
-
     <script type="module">
       import { renderSidebar, showToast, mountThemeToggle } from "../js/ui.js";
       import { requireAuth, getClient } from "../js/auth.js";
@@ -184,13 +228,15 @@
       const supabase = getClient();
       mountNotifications({ supabase });
 
-      const isSuper = profile.role === "super_admin";
+      const RESTAURANT_STORAGE_KEY = "admin_selected_restaurant";
+	    const isPlatform = ["super_admin", "platform_admin"].includes(profile.role);
+	    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(profile.role);
       document.getElementById("accessWarning").style.display = isSuper ? "none" : "";
       document.getElementById("stats").style.display = isSuper ? "" : "none";
       document.getElementById("addBranchBtn").disabled = !isSuper;
 
       const tbody = document.querySelector("#branchesTable tbody");
-      const modal = document.getElementById("branchModal");
+      const editor = document.getElementById("branchEditor");
       const form = document.getElementById("branchForm");
       const title = document.getElementById("branchModalTitle");
       const subtitle = document.getElementById("branchModalSubtitle");
@@ -200,38 +246,89 @@
       const lngEl = document.getElementById("branchLng");
       const activeEl = document.getElementById("branchIsActive");
       const openEl = document.getElementById("branchIsOpen");
+      const restaurantFilterWrap = document.getElementById("restaurantFilterWrap");
+      const restaurantFilterEl = document.getElementById("restaurantFilter");
+      const restaurantField = document.getElementById("restaurantField");
+      const restaurantSelect = document.getElementById("branchRestaurant");
       const statActive = document.getElementById("statActive");
       const statClosed = document.getElementById("statClosed");
       const statTotal = document.getElementById("statTotal");
+      const saveBranchBtn = document.getElementById("saveBranchBtn");
+      const addBranchBtn = document.getElementById("addBranchBtn");
 
       let editing = null;
+      let restaurants = [];
+      let restaurantById = new Map();
+      let selectedRestaurantId = localStorage.getItem(RESTAURANT_STORAGE_KEY) || "all";
+      let marketplaceReady = true;
 
       document.getElementById("refreshBtn").addEventListener("click", load);
-      document.getElementById("addBranchBtn").addEventListener("click", () => openModal(null));
+      addBranchBtn.addEventListener("click", () => openModal(null));
       document.getElementById("closeBranchModal").addEventListener("click", () => toggleModal(false));
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) toggleModal(false);
+      document.getElementById("cancelBranchEdit").addEventListener("click", () => toggleModal(false));
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && editor.classList.contains("show")) {
+          toggleModal(false);
+        }
       });
 
+      if (isPlatform) {
+        restaurantFilterWrap.style.display = "";
+        await hydrateRestaurants();
+        restaurantFilterEl.addEventListener("change", async () => {
+          selectedRestaurantId = restaurantFilterEl.value;
+          localStorage.setItem(RESTAURANT_STORAGE_KEY, selectedRestaurantId);
+          await load();
+        });
+      } else {
+        restaurantFilterWrap.style.display = "none";
+        selectedRestaurantId = profile.restaurant_id || "all";
+      }
+
       function toggleModal(show) {
-        modal.classList[show ? "add" : "remove"]("show");
+        editor.classList[show ? "add" : "remove"]("show");
+        editor.setAttribute("aria-hidden", show ? "false" : "true");
+        if (!show) {
+          editing = null;
+          form.reset();
+          activeEl.checked = true;
+          openEl.checked = true;
+        }
       }
 
       function openModal(branch) {
-        if (!isSuper) {
-          showToast("Super admin only");
-          return;
-        }
+	        if (!isSuper) {
+	          showToast("Owner/admin only");
+	          return;
+	        }
         editing = branch || null;
         title.textContent = editing ? `Edit ${editing.name}` : "Add branch";
         subtitle.textContent = editing ? `Created ${fmtDateTime(editing.created_at || "")}` : "Branch details";
+        if (isPlatform && marketplaceReady) {
+          restaurantField.style.display = "";
+          restaurantSelect.disabled = false;
+          restaurantSelect.required = true;
+          const defaultRestaurant =
+            editing?.restaurant_id ||
+            (selectedRestaurantId && selectedRestaurantId !== "all" ? selectedRestaurantId : "") ||
+            (restaurants.length === 1 ? restaurants[0].id : "");
+          restaurantSelect.value = defaultRestaurant || "";
+        } else {
+          restaurantField.style.display = "none";
+          restaurantSelect.disabled = true;
+          restaurantSelect.required = false;
+          restaurantSelect.value = "";
+        }
         nameEl.value = editing?.name || "";
         addrEl.value = editing?.address || "";
         latEl.value = editing?.lat ?? "";
         lngEl.value = editing?.lng ?? "";
         activeEl.checked = editing?.is_active ?? true;
         openEl.checked = editing?.is_open ?? true;
+        saveBranchBtn.textContent = editing ? "Update branch" : "Save branch";
         toggleModal(true);
+        editor.scrollIntoView({ behavior: "smooth", block: "start" });
+        requestAnimationFrame(() => nameEl.focus());
       }
 
       form.addEventListener("submit", async (e) => {
@@ -246,8 +343,33 @@
           is_active: !!activeEl.checked,
           is_open: !!openEl.checked,
         };
+        if (marketplaceReady) {
+          if (isPlatform) {
+            const rid = String(restaurantSelect.value || "").trim();
+            if (!rid) {
+              showToast("Select a restaurant");
+              return;
+            }
+            payload.restaurant_id = rid;
+          } else if (profile.restaurant_id) {
+            payload.restaurant_id = profile.restaurant_id;
+          }
+        }
         const { error } = await upsertBranch(payload);
-        if (error) return showToast(error.message);
+        if (error) {
+          console.error("[E][branch] branches_page_save_failed", error);
+          const msg = String(error.message || "");
+          if (error.code === "42P17" || msg.toLowerCase().includes("infinite recursion")) {
+            return showToast("Branch RLS recursion detected. Run migrations 0074_fix_branches_rls_recursion.sql and 0075_fix_branches_staff_access_recursion.sql in Supabase.");
+          }
+          if (msg.toLowerCase().includes("branch admin rpc")) {
+            return showToast(error.message);
+          }
+          if (msg.toLowerCase().includes("non volatile") || msg.toLowerCase().includes("non-volatile")) {
+            return showToast("Branch admin RPC is outdated. Run migrations 0072_fix_rpc_volatility.sql and 0079_harden_branch_admin_rpc_nonrecursive.sql in Supabase.");
+          }
+          return showToast(error.message);
+        }
         showToast("Branch saved");
         toggleModal(false);
         await load();
@@ -257,8 +379,22 @@
 
       async function load() {
         tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
-        const { data, error } = await fetchBranches();
+        const restaurantId =
+          marketplaceReady && isPlatform && selectedRestaurantId !== "all"
+            ? selectedRestaurantId
+            : (!isPlatform ? profile.restaurant_id : null);
+        const { data, error } = await fetchBranches({ restaurantId });
         if (error) {
+          console.error("[E][branch] branches_page_load_failed", error);
+          const msg = String(error.message || "");
+          if (error.code === "42P17" || msg.toLowerCase().includes("infinite recursion")) {
+            tbody.innerHTML = `<tr><td colspan="6" class="muted">Database branch RLS recursion. Run migrations 0074_fix_branches_rls_recursion.sql and 0075_fix_branches_staff_access_recursion.sql in Supabase.</td></tr>`;
+            return;
+          }
+          if (msg.toLowerCase().includes("non volatile") || msg.toLowerCase().includes("non-volatile")) {
+            tbody.innerHTML = `<tr><td colspan="6" class="muted">Branch admin RPC is outdated. Run migrations 0072_fix_rpc_volatility.sql and 0079_harden_branch_admin_rpc_nonrecursive.sql in Supabase.</td></tr>`;
+            return;
+          }
           tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
           return;
         }
@@ -278,10 +414,15 @@
           .map((b) => {
             const status = b.is_active ? '<span class="chip success">Active</span>' : '<span class="chip muted">Inactive</span>';
             const open = b.is_open ? '<span class="chip success">Open</span>' : '<span class="chip danger">Closed</span>';
+            const restaurantLabel =
+              isPlatform && b.restaurant_id && restaurantById.has(b.restaurant_id)
+                ? `<div class="muted text-xs">${escapeHtml(restaurantById.get(b.restaurant_id))}</div>`
+                : "";
             return `
               <tr data-id="${b.id}">
                 <td>
                   <div class="font-semibold">${escapeHtml(b.name || "Branch")}</div>
+                  ${restaurantLabel}
                   <div class="muted text-xs mono">${b.id.slice(0, 8)}…</div>
                 </td>
                 <td class="muted">${escapeHtml((b.address || "").trim() || "—")}</td>
@@ -297,6 +438,51 @@
         tbody.querySelectorAll("[data-edit]").forEach((btn) => {
           btn.addEventListener("click", () => openModal(map.get(btn.dataset.edit)));
         });
+      }
+
+      async function hydrateRestaurants() {
+        restaurantFilterEl.innerHTML = `<option value="all">All restaurants</option>`;
+        restaurantSelect.innerHTML = `<option value="" disabled>Select restaurant…</option>`;
+        const res = await supabase
+          .from("restaurants")
+          .select("id,name,status,is_active,created_at")
+          .order("created_at", { ascending: false })
+          .limit(500);
+
+        if (res.error) {
+          if (res.error.code === "42P01") {
+            marketplaceReady = false;
+            restaurantFilterWrap.style.display = "none";
+            restaurantField.style.display = "none";
+            return;
+          }
+          showToast(res.error.message);
+          return;
+        }
+
+        restaurants = (res.data || []).filter((r) => r?.id);
+        restaurantById = new Map(restaurants.map((r) => [r.id, r.name || "Restaurant"]));
+
+        const stored = selectedRestaurantId;
+        const ids = new Set(restaurants.map((r) => r.id));
+        if (stored !== "all" && !ids.has(stored)) {
+          selectedRestaurantId = restaurants.length === 1 ? restaurants[0].id : "all";
+          localStorage.setItem(RESTAURANT_STORAGE_KEY, selectedRestaurantId);
+        } else if (!stored) {
+          selectedRestaurantId = restaurants.length === 1 ? restaurants[0].id : "all";
+          localStorage.setItem(RESTAURANT_STORAGE_KEY, selectedRestaurantId);
+        }
+
+        restaurantFilterEl.innerHTML = [
+          `<option value="all">All restaurants</option>`,
+          ...restaurants.map((r) => `<option value="${r.id}">${escapeHtml(r.name || "Restaurant")}</option>`),
+        ].join("");
+        restaurantFilterEl.value = selectedRestaurantId || "all";
+
+        restaurantSelect.innerHTML = [
+          `<option value="" disabled>Select restaurant…</option>`,
+          ...restaurants.map((r) => `<option value="${r.id}">${escapeHtml(r.name || "Restaurant")}</option>`),
+        ].join("");
       }
 
       function escapeHtml(value) {
