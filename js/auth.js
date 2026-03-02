@@ -127,8 +127,17 @@ function toStoredProfile(profile, userId) {
     id: profile?.id || userId || null,
     user_id: userId || profile?.id || null,
     role,
+    name: profile?.name || null,
     restaurant_id: profile?.restaurant_id || null,
+    restaurant_name:
+      profile?.restaurant_name ||
+      profile?.restaurant?.name ||
+      null,
     branch_id: profile?.branch_id || null,
+    branch_name:
+      profile?.branch_name ||
+      profile?.branch?.name ||
+      null,
     is_active: profile?.is_active !== false,
     cached_at: Date.now(),
   };
@@ -156,8 +165,11 @@ function readCachedProfile(userId) {
     return {
       id: cachedUserId,
       role: parsed.role || null,
+      name: parsed.name || null,
       restaurant_id: parsed.restaurant_id || null,
+      restaurant_name: parsed.restaurant_name || null,
       branch_id: parsed.branch_id || null,
+      branch_name: parsed.branch_name || null,
       is_active: parsed.is_active !== false,
     };
   } catch {
@@ -169,42 +181,98 @@ export function cacheSessionProfile(profile, userId) {
   persistProfile(profile, userId);
 }
 
+async function resolveSessionBadgeTitle(profile) {
+  const role = normalizeRole(profile?.role);
+  if (!role) return null;
+
+  if (role === "platform_admin") return "Platform Admin";
+  if (role === "super_admin") return "Super Admin";
+
+  if (role === "restaurant_owner") {
+    const directRestaurantName =
+      profile?.restaurant_name ||
+      profile?.restaurant?.name ||
+      null;
+    if (directRestaurantName) return directRestaurantName;
+    if (profile?.restaurant_id) {
+      try {
+        const { data } = await supabase
+          .from("restaurants")
+          .select("name")
+          .eq("id", profile.restaurant_id)
+          .maybeSingle();
+        if (data?.name) return data.name;
+      } catch {}
+    }
+    return profile?.name || "Restaurant Owner";
+  }
+
+  if (["branch_admin", "staff"].includes(role)) {
+    if (profile?.name) return profile.name;
+    if (profile?.id) {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", profile.id)
+          .maybeSingle();
+        if (data?.name) return data.name;
+      } catch {}
+    }
+    return role === "branch_admin" ? "Branch Admin" : "Staff";
+  }
+
+  return humanRole(role);
+}
+
 function mountLogoutButton({ profile }) {
   const topbar = document.querySelector(".topbar");
   if (!topbar) return;
-  if (document.getElementById("logoutBtn")) return;
+  let btn = document.getElementById("logoutBtn");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.id = "logoutBtn";
+    btn.className = "btn danger";
+    btn.type = "button";
+    btn.title = "Sign out";
+    btn.setAttribute("aria-label", "Sign out");
+    btn.textContent = "⎋ Logout";
 
-  const btn = document.createElement("button");
-  btn.id = "logoutBtn";
-  btn.className = "btn danger";
-  btn.type = "button";
-  btn.title = "Sign out";
-  btn.setAttribute("aria-label", "Sign out");
-  btn.textContent = "⎋ Logout";
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Signing out…";
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+      clearProfileCache();
+      window.location.href = "login.html";
+    });
+  }
 
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    btn.textContent = "Signing out…";
-    try {
-      await supabase.auth.signOut();
-    } catch {}
-    clearProfileCache();
-    window.location.href = "login.html";
-  });
-
-  // Optional context badge (role)
-  if (!document.getElementById("sessionRoleBadge") && profile?.role) {
-    const role = String(profile.role).replaceAll("_", " ");
-    const badge = document.createElement("span");
+  let badge = document.getElementById("sessionRoleBadge");
+  if (!badge && profile?.role) {
+    badge = document.createElement("span");
     badge.id = "sessionRoleBadge";
     badge.className = "badge";
     badge.style.marginLeft = "6px";
     badge.style.background = "rgba(59,130,246,0.08)";
-    badge.textContent = role;
+    badge.textContent = humanRole(profile.role);
     topbar.appendChild(badge);
   }
 
-  topbar.appendChild(btn);
+  if (badge && profile?.role) {
+    resolveSessionBadgeTitle(profile)
+      .then((title) => {
+        if (!badge?.isConnected || !title) return;
+        badge.textContent = title;
+        badge.title = title;
+      })
+      .catch(() => {});
+  }
+
+  if (!btn.isConnected) {
+    topbar.appendChild(btn);
+  }
 }
 
 export async function fetchProfile(userId) {
