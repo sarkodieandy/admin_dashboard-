@@ -13,6 +13,38 @@ export function showToast(message) {
   });
 }
 
+const SESSION_STORAGE_KEY = "admin_session_profile_v1";
+
+function humanizeRole(role) {
+  return String(role || "")
+    .trim()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function getSidebarBrandTitle() {
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    const profile = raw ? JSON.parse(raw) : null;
+    const role = String(profile?.role || localStorage.getItem("admin_role") || "").trim();
+    const name = String(profile?.name || "").trim();
+    const restaurantName = String(profile?.restaurant_name || "").trim();
+
+    if (role === "restaurant_owner") {
+      return restaurantName || name || "Restaurant Owner";
+    }
+
+    if (name) {
+      return name;
+    }
+
+    if (role) {
+      return humanizeRole(role);
+    }
+  } catch {}
+  return "Dashboard";
+}
+
 export function renderSidebar(activeId) {
   const role = (localStorage.getItem("admin_role") || "").trim();
 
@@ -67,7 +99,12 @@ export function renderSidebar(activeId) {
   };
 
   const items = menus[role] || menus.staff;
+  const brand = document.querySelector(".sidebar .brand");
   const nav = document.querySelector(".sidebar .nav");
+  if (brand) {
+    brand.textContent = getSidebarBrandTitle();
+    brand.title = brand.textContent;
+  }
   if (!nav) return;
   nav.innerHTML = items
     .map(
