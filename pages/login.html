@@ -369,7 +369,7 @@
 
   <script type="module">
     import { showToast, mountThemeToggle } from "../js/ui.js";
-    import { getClient, fetchProfile, cacheSessionProfile, normalizeRole, isStaffRole } from "../js/auth.js";
+    import { getClient, fetchProfile, cacheSessionProfile, normalizeRole, isStaffRole, getHomePageForRole } from "../js/auth.js";
     const supabase = getClient();
     const form = document.getElementById("loginForm");
     const errorEl = document.getElementById("loginError");
@@ -480,21 +480,21 @@
           submitLabel.textContent = "Login";
           return;
         }
-        if (loginAs === "restaurant_owner" && !["restaurant_owner", "platform_admin"].includes(normalized)) {
+        if (loginAs === "restaurant_owner" && normalized !== "restaurant_owner") {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Restaurant Owner account.";
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
         }
-        if (loginAs === "branch_admin" && !["branch_admin", "restaurant_owner", "platform_admin"].includes(normalized)) {
+        if (loginAs === "branch_admin" && normalized !== "branch_admin") {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Branch Admin account.";
           submitBtn.disabled = false;
           submitLabel.textContent = "Login";
           return;
         }
-        if (loginAs === "staff" && !["staff", "branch_admin", "restaurant_owner", "platform_admin"].includes(normalized)) {
+        if (loginAs === "staff" && normalized !== "staff") {
           await supabase.auth.signOut();
           errorEl.textContent = "This account is not a Staff account.";
           submitBtn.disabled = false;
@@ -509,8 +509,8 @@
       }
 
       showToast("Signed in");
-      submitLabel.textContent = "Opening dashboard…";
-      window.location.replace("dashboard.html");
+      submitLabel.textContent = "Opening workspace…";
+      window.location.replace(getHomePageForRole(loginAsEl?.value || "staff"));
     });
   </script>
 </body>

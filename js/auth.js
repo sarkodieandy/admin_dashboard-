@@ -3,6 +3,27 @@ import { showToast } from "./ui.js";
 
 const supabase = createClient();
 const PROFILE_CACHE_TTL_MS = 90 * 1000;
+const PAGE_ACCESS_RULES = {
+  "dashboard.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "global-overview.html": ["platform_admin", "super_admin"],
+  "restaurants.html": ["platform_admin", "super_admin"],
+  "branches.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "orders.html": ["super_admin", "restaurant_owner", "branch_admin", "staff"],
+  "deliveries.html": ["super_admin"],
+  "riders.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "commissions.html": ["platform_admin", "super_admin"],
+  "users.html": ["platform_admin", "super_admin"],
+  "analytics.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "settings.html": ["platform_admin", "super_admin", "restaurant_owner", "branch_admin", "staff"],
+  "menu.html": ["platform_admin", "super_admin", "restaurant_owner", "branch_admin", "staff"],
+  "customers.html": ["restaurant_owner"],
+  "chats.html": ["restaurant_owner", "branch_admin", "staff"],
+  "staff-roles.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "promotions.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "delivery-settings.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "audit-logs.html": ["platform_admin", "super_admin", "restaurant_owner"],
+  "reviews-support.html": ["platform_admin", "super_admin", "restaurant_owner"],
+};
 
 export function normalizeRole(role) {
   if (!role) return null;
@@ -37,6 +58,43 @@ function redirectTo(url) {
 function isPlatformRole(role) {
   const r = normalizeRole(role);
   return r === "platform_admin" || r === "super_admin";
+}
+
+function currentPageName() {
+  try {
+    const pathname = window.location.pathname || "";
+    const page = pathname.split("/").pop();
+    return page || "dashboard.html";
+  } catch {
+    return "dashboard.html";
+  }
+}
+
+function humanRole(role) {
+  const normalized = normalizeRole(role);
+  if (!normalized) return "user";
+  return normalized.replaceAll("_", " ");
+}
+
+export function getHomePageForRole(role) {
+  const normalized = normalizeRole(role);
+  if (["branch_admin", "staff"].includes(normalized || "")) {
+    return "orders.html";
+  }
+  if (["platform_admin", "super_admin", "restaurant_owner"].includes(normalized || "")) {
+    return "dashboard.html";
+  }
+  return "login.html";
+}
+
+function enforcePageAccess(profile, role) {
+  const page = currentPageName();
+  const allowedRoles = PAGE_ACCESS_RULES[page];
+  if (!allowedRoles) return null;
+  if (allowedRoles.includes(role)) return null;
+
+  showToast(`Access denied: ${humanRole(role)} cannot open this page.`);
+  return redirectTo(getHomePageForRole(role));
 }
 
 export function isStaffRole(role) {
@@ -254,6 +312,8 @@ export async function requireAuth() {
     const redirect = await enforceRestaurantAccess(normalizedProfile, role);
     if (redirect) return redirect;
   }
+  const pageRedirect = enforcePageAccess(normalizedProfile, role);
+  if (pageRedirect) return pageRedirect;
   persistProfile(normalizedProfile, user.id);
   try {
     window.__rerenderSidebar?.();
