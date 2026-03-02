@@ -153,9 +153,15 @@ function escapeHtml(s) {
 }
 
 function resolveHref(n) {
+  const role = String(localStorage.getItem("admin_role") || "").trim();
   const entityType = String(n?.entity_type || "").toLowerCase().trim();
   const entityId = String(n?.entity_id || "").trim();
   const type = String(n?.type || "").toLowerCase().trim();
+  const summaryOnlyRole = role === "platform_admin";
+
+  if (summaryOnlyRole) {
+    return "dashboard.html";
+  }
 
   if (entityType === "chat" && entityId) return `chats.html#${entityId}`;
   if (entityType === "order" && entityId) return `orders.html#${entityId}`;

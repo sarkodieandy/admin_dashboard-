@@ -71,19 +71,19 @@
           <div class="card" style="flex:1;">
             <div class="flex-between" style="margin-bottom: var(--space-3);">
               <div>
-                <div class="font-bold">Recent Orders</div>
-                <div class="muted text-sm">Latest activity</div>
+                <div id="activityCardTitle" class="font-bold">Recent Orders</div>
+                <div id="activityCardSubtitle" class="muted text-sm">Latest activity</div>
               </div>
-              <a class="btn ghost" href="orders.html">View all</a>
+              <a id="activityCardAction" class="btn ghost" href="orders.html">View all</a>
             </div>
             <div id="recentOrders" class="space-y-2"></div>
           </div>
           <div class="card" style="width: 420px;">
-            <div class="font-bold" style="margin-bottom: var(--space-3);">Top Restaurants (7 days)</div>
+            <div id="restaurantTotalsTitle" class="font-bold" style="margin-bottom: var(--space-3);">Top Restaurants (7 days)</div>
             <div class="table-wrap">
               <table class="table">
                 <thead>
-                  <tr><th>Restaurant</th><th>Orders</th><th>Gross</th></tr>
+                  <tr><th>Restaurant</th><th id="restaurantTotalsOrdersHead">Orders</th><th id="restaurantTotalsValueHead">Gross</th></tr>
                 </thead>
                 <tbody id="topRestaurantsBody"></tbody>
               </table>
@@ -107,6 +107,13 @@
     mountThemeToggle();
     const { profile } = await requireAuth();
     const supabase = getClient();
+    const isPlatformSummaryOnly = profile.role === "platform_admin";
+    const activityCardTitle = document.getElementById("activityCardTitle");
+    const activityCardSubtitle = document.getElementById("activityCardSubtitle");
+    const activityCardAction = document.getElementById("activityCardAction");
+    const restaurantTotalsTitle = document.getElementById("restaurantTotalsTitle");
+    const restaurantTotalsOrdersHead = document.getElementById("restaurantTotalsOrdersHead");
+    const restaurantTotalsValueHead = document.getElementById("restaurantTotalsValueHead");
     mountNotifications({ supabase });
 
     await initBranchState({ role: profile.role, profileBranchId: profile.branch_id, profileRestaurantId: profile.restaurant_id });
@@ -117,9 +124,38 @@
       loadTop();
     });
 
+    configureActivityPanel();
+    configureRestaurantTotalsPanel();
+
     loadKpis();
     loadRecent();
     loadTop();
+
+    function configureActivityPanel() {
+      if (!activityCardTitle || !activityCardSubtitle || !activityCardAction) return;
+      if (isPlatformSummaryOnly) {
+        activityCardTitle.textContent = "Today's Restaurant Summary";
+        activityCardSubtitle.textContent = "Daily order counts and totals by restaurant";
+        activityCardAction.style.display = "none";
+        return;
+      }
+      activityCardTitle.textContent = "Recent Orders";
+      activityCardSubtitle.textContent = "Latest activity";
+      activityCardAction.style.display = "";
+    }
+
+    function configureRestaurantTotalsPanel() {
+      if (!restaurantTotalsTitle || !restaurantTotalsOrdersHead || !restaurantTotalsValueHead) return;
+      if (isPlatformSummaryOnly) {
+        restaurantTotalsTitle.textContent = "Today's Restaurant Totals";
+        restaurantTotalsOrdersHead.textContent = "Today";
+        restaurantTotalsValueHead.textContent = "Gross";
+        return;
+      }
+      restaurantTotalsTitle.textContent = "Top Restaurants (7 days)";
+      restaurantTotalsOrdersHead.textContent = "Orders";
+      restaurantTotalsValueHead.textContent = "Gross";
+    }
 
     async function setContextBadges() {
       const branchId = getSelectedBranchId();
@@ -175,9 +211,12 @@
 
     async function loadRecent() {
       const rawBranch = getSelectedBranchId();
-      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const list = document.getElementById("recentOrders");
       list.innerHTML = `<div class="skeleton" style="height:40px; border-radius:var(--radius-sm);"></div>`;
+      if (isPlatformSummaryOnly) {
+        await loadTodayRestaurantSummary({ list, rawBranch });
+        return;
+      }
       const { data, error } = await fetchRecentOrders({ limit: 12, branchId: rawBranch });
       if (error) { list.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       if (!data || data.length===0) { list.innerHTML = `<div class="muted">No orders yet.</div>`; return; }
@@ -193,6 +232,111 @@
           <div class="chip" style="background:${statusColor(o.status)}; color:#0f172a;">${statusLabel(o.status)}</div>
           <div class="font-bold">${fmtMoney(o.total)}</div>
         </div>`).join("");
+    }
+
+    async function loadTodayRestaurantSummary({ list, rawBranch }) {
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      let q = supabase
+        .from("orders")
+        .select("restaurant_id,total,status,created_at,branch_id")
+        .gte("created_at", today.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5000);
+
+      if (branchId) q = q.eq("branch_id", branchId);
+
+      const { data, error } = await q;
+      if (error) {
+        list.innerHTML = `<div class="muted">Error: ${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      const rows = data || [];
+      if (!rows.length) {
+        list.innerHTML = `<div class="muted">No orders placed today.</div>`;
+        return;
+      }
+
+      const byRestaurant = new Map();
+      for (const row of rows) {
+        const restaurantId = row.restaurant_id || "__unknown__";
+        const current =
+          byRestaurant.get(restaurantId) || {
+            orders: 0,
+            gross: 0,
+            delivered: 0,
+            live: 0,
+            lastOrderAt: null,
+          };
+        current.orders += 1;
+        current.gross += Number(row.total || 0);
+        if (row.status === "delivered") current.delivered += 1;
+        if (["placed", "confirmed", "preparing", "ready", "en_route"].includes(String(row.status || ""))) {
+          current.live += 1;
+        }
+        if (!current.lastOrderAt || new Date(row.created_at) > new Date(current.lastOrderAt)) {
+          current.lastOrderAt = row.created_at;
+        }
+        byRestaurant.set(restaurantId, current);
+      }
+
+      const restaurantIds = Array.from(byRestaurant.keys()).filter((id) => id !== "__unknown__");
+      let nameMap = new Map();
+      if (restaurantIds.length) {
+        try {
+          const { data: restaurants, error: restaurantError } = await supabase
+            .from("restaurants")
+            .select("id,name")
+            .in("id", restaurantIds);
+          if (!restaurantError && Array.isArray(restaurants)) {
+            nameMap = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant.name || restaurant.id]));
+          }
+        } catch (err) {
+          debug("today summary restaurant names error", err);
+        }
+      }
+
+      const summaryRows = Array.from(byRestaurant.entries())
+        .map(([id, stats]) => ({
+          id,
+          name: id === "__unknown__" ? "Unknown restaurant" : nameMap.get(id) || "Unknown restaurant",
+          ...stats,
+        }))
+        .sort((a, b) => {
+          if (b.orders !== a.orders) return b.orders - a.orders;
+          return b.gross - a.gross;
+        });
+
+      list.innerHTML = `
+        <div style="border:1px solid var(--color-border); border-radius: var(--radius-md); overflow:hidden; background:var(--color-panel);">
+          <div style="display:grid; grid-template-columns:minmax(180px,1.6fr) repeat(4,minmax(90px,1fr)); gap:12px; padding:12px 14px; background:var(--color-surface); border-bottom:1px solid var(--color-border); font-size:12px; font-weight:700; color:var(--color-muted); text-transform:uppercase; letter-spacing:0.04em;">
+            <div>Restaurant</div>
+            <div>Today</div>
+            <div>Live</div>
+            <div>Delivered</div>
+            <div>Gross</div>
+          </div>
+          ${summaryRows
+            .map(
+              (row) => `
+                <div style="display:grid; grid-template-columns:minmax(180px,1.6fr) repeat(4,minmax(90px,1fr)); gap:12px; padding:14px; border-bottom:1px solid var(--color-border); align-items:center;">
+                  <div>
+                    <div class="font-semibold">${escapeHtml(row.name)}</div>
+                    <div class="muted text-sm">${row.lastOrderAt ? `Last order ${new Date(row.lastOrderAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "No recent activity"}</div>
+                  </div>
+                  <div class="font-semibold">${row.orders}</div>
+                  <div><span class="tag info">${row.live}</span></div>
+                  <div><span class="tag success">${row.delivered}</span></div>
+                  <div class="font-semibold">${fmtMoney(row.gross)}</div>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      `;
     }
 
     function statusColor(s) {
@@ -212,6 +356,11 @@
       const tbody = document.getElementById("topRestaurantsBody");
       if (!tbody) return;
       tbody.innerHTML = `<tr><td colspan="3"><div class="skeleton" style="height:40px; border-radius:var(--radius-sm);"></div></td></tr>`;
+
+      if (isPlatformSummaryOnly) {
+        await loadTodayRestaurantTotals(tbody);
+        return;
+      }
 
       const today = new Date();
       const start = new Date();
@@ -273,6 +422,79 @@
       tbody.innerHTML = top
         .map((row) => {
           const name = nameMap.get(row.id) || row.id;
+          return `
+            <tr>
+              <td>${escapeHtml(name)}</td>
+              <td>${row.orders}</td>
+              <td>${fmtMoney(row.gross)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    async function loadTodayRestaurantTotals(tbody) {
+      const rawBranch = getSelectedBranchId();
+      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      let q = supabase
+        .from("orders")
+        .select("restaurant_id,total,created_at,branch_id")
+        .gte("created_at", today.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5000);
+
+      if (branchId) q = q.eq("branch_id", branchId);
+
+      const { data, error } = await q;
+      if (error) {
+        debug("today restaurant totals error", error);
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="3" class="muted">${escapeHtml(error.message)}</td></tr>`;
+        return;
+      }
+
+      const byRestaurant = new Map();
+      for (const row of data || []) {
+        const rid = row.restaurant_id;
+        if (!rid) continue;
+        const current = byRestaurant.get(rid) || { gross: 0, orders: 0 };
+        current.gross += Number(row.total || 0);
+        current.orders += 1;
+        byRestaurant.set(rid, current);
+      }
+
+      const ranked = Array.from(byRestaurant.entries())
+        .map(([id, stats]) => ({ id, ...stats }))
+        .sort((a, b) => {
+          if (b.orders !== a.orders) return b.orders - a.orders;
+          return b.gross - a.gross;
+        })
+        .slice(0, 10);
+
+      if (!ranked.length) {
+        tbody.innerHTML = `<tr class="table-empty"><td colspan="3" class="muted">No restaurant orders today.</td></tr>`;
+        return;
+      }
+
+      let nameMap = new Map();
+      try {
+        const ids = ranked.map((row) => row.id);
+        const { data: restaurants, error: restaurantsError } = await supabase
+          .from("restaurants")
+          .select("id,name")
+          .in("id", ids);
+        if (!restaurantsError && Array.isArray(restaurants)) {
+          nameMap = new Map(restaurants.map((row) => [row.id, row.name || row.id]));
+        }
+      } catch (err) {
+        debug("today restaurant totals names error", err);
+      }
+
+      tbody.innerHTML = ranked
+        .map((row) => {
+          const name = nameMap.get(row.id) || "Restaurant";
           return `
             <tr>
               <td>${escapeHtml(name)}</td>

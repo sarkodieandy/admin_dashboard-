@@ -361,7 +361,7 @@ export async function upsertStaffAllowlist(email, role) {
 export async function fetchNotifications() {
   return supabase
     .from("staff_notifications")
-    .select("id,title,body,is_read,created_at,type,entity_id")
+    .select("id,title,body,is_read,created_at,type,entity_id,entity_type")
     .order("created_at", { ascending: false })
     .limit(30);
 }

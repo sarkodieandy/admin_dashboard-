@@ -212,6 +212,11 @@
     renderSidebar("orders.html");
     mountThemeToggle();
     const { user, profile } = await requireAuth();
+    if (profile.role === "platform_admin") {
+      showToast("Platform admins can view summary analytics only.");
+      window.setTimeout(() => window.location.replace("dashboard.html"), 180);
+      await new Promise(() => {});
+    }
     mountStatusBanner();
     const supabase = getClient();
     mountNotifications({ supabase });
