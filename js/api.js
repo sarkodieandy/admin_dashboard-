@@ -387,7 +387,43 @@ export async function fetchRiders({ activeOnly = false, search = "", branchId } 
     const term = `%${search}%`;
     q = q.or(`name.ilike.${term},phone.ilike.${term},vehicle_type.ilike.${term}`);
   }
-  return q;
+  const ridersRes = await q;
+  if (ridersRes.error || !Array.isArray(ridersRes.data) || !ridersRes.data.length) {
+    return ridersRes;
+  }
+
+  const userIds = [...new Set((ridersRes.data || []).map((r) => String(r?.user_id || "").trim()).filter(Boolean))];
+  if (!userIds.length) {
+    return ridersRes;
+  }
+
+  const profilesRes = await supabase
+    .from("profiles")
+    .select("id,last_lat,last_lng,rider_status,updated_at,is_active")
+    .in("id", userIds);
+
+  if (profilesRes.error) {
+    console.warn("[W][riders] profiles_location_lookup_failed", { error: profilesRes.error });
+    return ridersRes;
+  }
+
+  const profileById = new Map((profilesRes.data || []).map((row) => [row.id, row]));
+  const enriched = (ridersRes.data || []).map((rider) => {
+    const profile = profileById.get(rider.user_id) || {};
+    return {
+      ...rider,
+      rider_status: rider.rider_status ?? profile.rider_status ?? null,
+      last_lat: rider.last_lat ?? profile.last_lat ?? null,
+      last_lng: rider.last_lng ?? profile.last_lng ?? null,
+      last_location_at: profile.updated_at || null,
+      profile_is_active: profile.is_active ?? null,
+    };
+  });
+
+  return {
+    ...ridersRes,
+    data: enriched,
+  };
 }
 
 export async function updateRider(id, payload) {

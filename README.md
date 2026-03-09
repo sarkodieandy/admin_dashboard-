@@ -11,6 +11,8 @@ Static, multi-page admin dashboard for the existing Supabase backend (same DB as
    # open http://localhost:4173/pages/login.html
    ```
 3) Deploy on GitHub Pages: set Pages source to `main` / root; entry URL `https://<user>.github.io/<repo>/admin-dashboard/pages/login.html` (root `index.html` already redirects there).
+   - This repo also includes `.github/workflows/deploy-pages.yml` for GitHub Actions-based Pages deploys.
+   - If Pages is not live from branch source, switch Settings > Pages > Source to `GitHub Actions`.
 
 ## Structure
 ```
