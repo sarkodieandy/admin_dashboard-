@@ -50,12 +50,12 @@ export function renderSidebar(activeId) {
 
   const menus = {
     platform_admin: [
-      ["global-overview.html", "Global Overview", "🌐"],
-      ["dashboard.html", "Overview", "📊"],
+      ["global-overview.html", "Dashboard", "🌐"],
+      ["dashboard.html", "Operations", "📊"],
       ["restaurants.html", "Restaurants", "🏪"],
       ["branches.html", "Branches", "🏠"],
       ["riders.html", "Riders", "🛵"],
-      ["commissions.html", "Revenue & Commissions", "💸"],
+      ["commissions.html", "Revenue", "💸"],
       ["users.html", "Users", "👥"],
       ["analytics.html", "Analytics", "📈"],
       ["settings.html", "Settings", "⚙️"],

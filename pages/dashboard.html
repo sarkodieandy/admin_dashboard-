@@ -22,7 +22,7 @@
       <div class="topbar">
         <div>
           <div id="pageTitle" class="font-bold">Dashboard</div>
-          <div class="muted" style="font-size: var(--text-sm)">Overview</div>
+          <div id="pageSubtitle" class="muted" style="font-size: var(--text-sm)">Overview</div>
         </div>
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <select id="branchSwitcherSelect" class="input" style="height:38px; width:200px; padding-right:32px;"></select>
@@ -41,7 +41,10 @@
             </div>
           </div>
           <div class="kpi-card">
-            <div class="muted text-sm">Revenue</div>
+            <div class="flex-between" style="align-items:flex-start; gap:8px;">
+              <div class="muted text-sm">Revenue</div>
+              <a id="kpiRevenueLink" class="kpi-card-link" href="commissions.html" hidden>Open revenue</a>
+            </div>
             <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
               <div id="kpi-revenue" class="text-2xl font-extrabold">—</div>
               <span class="tag info" id="kpi-revenue-trend">▲</span>
@@ -108,9 +111,13 @@
     const { profile } = await requireAuth();
     const supabase = getClient();
     const isPlatformSummaryOnly = profile.role === "platform_admin";
+    const isPlatformRole = isPlatformRolePublic(profile.role);
+    const pageTitle = document.getElementById("pageTitle");
+    const pageSubtitle = document.getElementById("pageSubtitle");
     const activityCardTitle = document.getElementById("activityCardTitle");
     const activityCardSubtitle = document.getElementById("activityCardSubtitle");
     const activityCardAction = document.getElementById("activityCardAction");
+    const revenueLink = document.getElementById("kpiRevenueLink");
     const restaurantTotalsTitle = document.getElementById("restaurantTotalsTitle");
     const restaurantTotalsOrdersHead = document.getElementById("restaurantTotalsOrdersHead");
     const restaurantTotalsValueHead = document.getElementById("restaurantTotalsValueHead");
@@ -125,11 +132,24 @@
     });
 
     configureActivityPanel();
+    configurePageHeader();
     configureRestaurantTotalsPanel();
+    if (revenueLink) revenueLink.hidden = !isPlatformRole;
 
     loadKpis();
     loadRecent();
     loadTop();
+
+    function configurePageHeader() {
+      if (!pageTitle || !pageSubtitle) return;
+      if (isPlatformSummaryOnly) {
+        pageTitle.textContent = "Operations";
+        pageSubtitle.textContent = "Today's order activity across all restaurants";
+        return;
+      }
+      pageTitle.textContent = "Dashboard";
+      pageSubtitle.textContent = "Overview";
+    }
 
     function configureActivityPanel() {
       if (!activityCardTitle || !activityCardSubtitle || !activityCardAction) return;
@@ -199,7 +219,8 @@
       const cancel = data?.filter(o=>o.status==='cancelled').length || 0;
       document.getElementById("kpi-orders").textContent = orders;
       document.getElementById("kpi-revenue").textContent = fmtMoney(revenue);
-      document.getElementById("kpi-cancel").textContent = cancel;
+      const cancelEl = document.getElementById("kpi-cancel");
+      if (cancelEl) cancelEl.textContent = cancel;
       let chatsQ = supabase.from("chats").select("id,branch_id");
       if (branchId) chatsQ = chatsQ.eq("branch_id", branchId);
       const { data: chats, error: chatErr } = await chatsQ;

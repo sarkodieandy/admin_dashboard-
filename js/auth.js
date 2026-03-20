@@ -81,7 +81,10 @@ export function getHomePageForRole(role) {
   if (["branch_admin", "staff"].includes(normalized || "")) {
     return "orders.html";
   }
-  if (["platform_admin", "super_admin", "restaurant_owner"].includes(normalized || "")) {
+  if (normalized === "platform_admin") {
+    return "global-overview.html";
+  }
+  if (["super_admin", "restaurant_owner"].includes(normalized || "")) {
     return "dashboard.html";
   }
   return "login.html";

@@ -1,5 +1,12 @@
 .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .kpi-card { padding: 14px; border-radius: var(--radius-md); background: var(--color-panel); border: 1px solid var(--color-border); box-shadow: var(--shadow-xs); }
+.kpi-card-link {
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-decoration: none;
+}
+.kpi-card-link:hover { text-decoration: underline; }
 
 .layout-shell { display: flex; gap: var(--space-4); }
 .page {
