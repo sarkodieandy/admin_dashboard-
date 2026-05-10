@@ -1,5 +1,6 @@
 .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.kpi-card { padding: 14px; border-radius: 0; background: var(--color-panel); border: 1px solid var(--color-border); box-shadow: var(--shadow-xs); }
+.kpi-card { padding: 14px; border-radius: 0; background: var(--color-panel); border: 1px solid var(--color-border); box-shadow: var(--shadow-xs); transition: transform var(--dur-med) var(--ease-soft), box-shadow var(--dur-med) var(--ease-soft), border-color var(--dur-med) var(--ease-soft); }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); border-color: rgba(232,93,4,0.42); }
 .kpi-card-link {
   color: var(--color-primary);
   font-size: var(--text-xs);
@@ -92,7 +93,7 @@
   display: grid;
   place-items: center;
   color: white;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
+  background: linear-gradient(135deg, var(--color-action), var(--color-action-strong));
   box-shadow: var(--shadow-sm);
 }
 .auth-title { font-size: clamp(28px, 3.4vw, 42px); font-weight: 800; line-height: 1.08; margin: 0; }
@@ -105,7 +106,10 @@
   border-radius: var(--radius-md);
   background: rgba(255,255,255,0.45);
   box-shadow: var(--shadow-xs);
+  animation: fade-scale var(--dur-slow) var(--ease-soft) both;
 }
+.auth-bullet:nth-child(2) { animation-delay: 45ms; }
+.auth-bullet:nth-child(3) { animation-delay: 90ms; }
 :root[data-theme="dark"] .auth-bullet { background: rgba(18, 24, 36, 0.62); }
 .auth-bullet .dot {
   width: 12px; height: 12px; border-radius: 999px;

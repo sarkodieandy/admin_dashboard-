@@ -30,6 +30,10 @@
   --dur-med: 220ms;
   --dur-slow: 360ms;
 
+  /* brand */
+  --color-blueblack: #0b1324;
+  --color-blueblack-strong: #050b16;
+
   /* shadows */
   --shadow-xs: 0 4px 14px rgba(232, 93, 4, 0.10);
   --shadow-sm: 0 12px 30px rgba(232, 93, 4, 0.12);
@@ -45,6 +49,9 @@
   --color-muted: #746d68;
   --color-primary: #e85d04;
   --color-primary-strong: #c2410c;
+  --color-action: var(--color-blueblack);
+  --color-action-strong: var(--color-blueblack-strong);
+  --color-on-action: #ffffff;
   --color-success: #16a34a;
   --color-warning: #e85d04;
   --color-danger: #c2410c;
@@ -62,6 +69,9 @@
   --color-muted: #9aa3b5;
   --color-primary: #e85d04;
   --color-primary-strong: #c2410c;
+  --color-action: #e85d04;
+  --color-action-strong: #c2410c;
+  --color-on-action: #ffffff;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
@@ -73,6 +83,22 @@
 @keyframes fade-slide {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-scale {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes soft-pop {
+  0% { transform: scale(0.98); }
+  70% { transform: scale(1.015); }
+  100% { transform: scale(1); }
 }
 
 @keyframes shimmer {

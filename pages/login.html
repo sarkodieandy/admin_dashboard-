@@ -213,14 +213,16 @@
       width: 100%;
       height: 52px;
       border-radius: 14px;
-      border: 1px solid rgba(249,115,22,0.55);
-      background: linear-gradient(90deg, #f97316, #fb923c);
-      color: #0b1220;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(90deg, #0b1324, #111c33);
+      color: #ffffff;
       font-weight: 900;
       font-size: 18px;
-      box-shadow: 0 20px 50px rgba(249,115,22,0.22);
+      box-shadow: 0 20px 50px rgba(2,6,23,0.30);
+      transition: transform 140ms var(--ease-soft), box-shadow 140ms var(--ease-soft), filter 140ms var(--ease-soft);
     }
     .login-primary:hover { filter: brightness(1.02); transform: translateY(-1px); }
+    .login-primary:active { transform: translateY(1px) scale(0.98); }
 
     .panel-footer {
       margin-top: auto;
