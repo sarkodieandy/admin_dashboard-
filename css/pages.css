@@ -66,8 +66,8 @@
   grid-template-columns: 1.05fr 0.95fr;
   gap: 0;
   background:
-    radial-gradient(900px 420px at 20% 20%, rgba(244,140,37,0.18), transparent 60%),
-    radial-gradient(800px 460px at 80% 40%, rgba(255,179,92,0.12), transparent 62%),
+    radial-gradient(900px 420px at 20% 20%, rgba(232,93,4,0.20), transparent 60%),
+    radial-gradient(800px 460px at 80% 40%, rgba(194,65,12,0.12), transparent 62%),
     var(--color-bg);
 }
 .auth-hero {
@@ -111,7 +111,7 @@
   width: 12px; height: 12px; border-radius: 999px;
   margin-top: 4px;
   background: var(--color-primary);
-  box-shadow: 0 0 0 6px rgba(244,140,37,0.15);
+  box-shadow: 0 0 0 6px rgba(232,93,4,0.16);
 }
 .auth-panel {
   padding: clamp(18px, 3vw, 38px);
