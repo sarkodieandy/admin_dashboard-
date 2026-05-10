@@ -424,6 +424,7 @@
 
       // Ensure staff-only access is clear (no confusing redirect loops).
       const userId = signInData?.user?.id || signInData?.session?.user?.id || null;
+      let resolvedRole = loginAs;
       if (userId) {
         let { data: profile, error: profileErr } = await fetchProfile(userId);
         if (profileErr) {
@@ -465,52 +466,16 @@
           return;
         }
 
-        // Validate the selected login type against the actual profile role.
-        // This does NOT grant access; it only prevents confusing mismatches.
-        const normalized =
-          role === "admin"
-            ? "branch_admin"
-            : role === "super_admin"
-              ? "platform_admin"
-              : role;
-        if (loginAs === "platform_admin" && normalized !== "platform_admin") {
-          await supabase.auth.signOut();
-          errorEl.textContent = "This account is not a Platform Admin account.";
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-        if (loginAs === "restaurant_owner" && normalized !== "restaurant_owner") {
-          await supabase.auth.signOut();
-          errorEl.textContent = "This account is not a Restaurant Owner account.";
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-        if (loginAs === "branch_admin" && normalized !== "branch_admin") {
-          await supabase.auth.signOut();
-          errorEl.textContent = "This account is not a Branch Admin account.";
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-        if (loginAs === "staff" && normalized !== "staff") {
-          await supabase.auth.signOut();
-          errorEl.textContent = "This account is not a Staff account.";
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-
         // Help the sidebar render immediately after redirect.
         try {
           cacheSessionProfile({ ...profile, id: userId, role }, userId);
         } catch {}
+        resolvedRole = role || loginAs;
       }
 
       showToast("Signed in");
       submitLabel.textContent = "Opening workspace…";
-      window.location.replace(getHomePageForRole(loginAsEl?.value || "staff"));
+      window.location.replace(getHomePageForRole(resolvedRole));
     });
   </script>
 </body>

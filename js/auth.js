@@ -37,6 +37,7 @@ export function normalizeRole(role) {
     operator: 'staff',
     manager: 'staff',
     chef: 'staff',
+    admin: 'branch_admin',
     staff_admin: 'staff',
     admin_staff: 'staff',
     branch_manager: 'branch_admin',
