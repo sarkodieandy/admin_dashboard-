@@ -412,10 +412,10 @@ export async function fetchRiders({ activeOnly = false, search = "", branchId } 
     const profile = profileById.get(rider.user_id) || {};
     return {
       ...rider,
-      rider_status: rider.rider_status ?? profile.rider_status ?? null,
-      last_lat: rider.last_lat ?? profile.last_lat ?? null,
-      last_lng: rider.last_lng ?? profile.last_lng ?? null,
-      last_location_at: profile.updated_at || null,
+      rider_status: rider.availability_status ?? rider.rider_status ?? profile.rider_status ?? null,
+      last_lat: rider.current_latitude ?? rider.last_lat ?? profile.last_lat ?? null,
+      last_lng: rider.current_longitude ?? rider.last_lng ?? profile.last_lng ?? null,
+      last_location_at: rider.last_location_update || profile.updated_at || null,
       profile_is_active: profile.is_active ?? null,
     };
   });
@@ -730,8 +730,12 @@ export async function upsertBranch(payload) {
       branch_id: payload.id || null,
       name: payload.name,
       address: payload.address || null,
+      region: payload.region || null,
+      city: payload.city || null,
+      area: payload.area || null,
       lat: payload.lat ?? null,
       lng: payload.lng ?? null,
+      delivery_radius_km: payload.delivery_radius_km ?? null,
       is_active: payload.is_active ?? true,
       is_open: payload.is_open ?? true,
       restaurant_id: payload.restaurant_id || null,
@@ -780,6 +784,20 @@ export async function upsertBranch(payload) {
     restaurant_id: payload.restaurant_id || null,
   });
   if (!rpc.error) {
+    const branchId = Array.isArray(rpc.data)
+      ? rpc.data?.[0]?.id
+      : rpc.data?.id || payload.id;
+    if (branchId) {
+      await supabase
+        .from("branches")
+        .update({
+          region: payload.region || null,
+          city: payload.city || null,
+          area: payload.area || null,
+          delivery_radius_km: payload.delivery_radius_km ?? null,
+        })
+        .eq("id", branchId);
+    }
     return { data: rpc.data, error: null, schemaFallback: false, viaRpc: true };
   }
 
@@ -1021,6 +1039,12 @@ export async function saveRestaurantSettingsForBranch(payload, branchId) {
 
 export async function fetchRestaurants({ status, search, limit = 200, offset = 0 } = {}) {
   const scope = getCurrentScope();
+  const baseSelectWithLocation =
+    "id,name,slug,logo_url,phone,email,is_active,status,created_at,owner_id,rating,review_count,is_verified,address,latitude,longitude,delivery_radius_km,region,city,area";
+  const baseSelectNoOwnerWithLocation =
+    "id,name,slug,logo_url,phone,email,is_active,status,created_at,rating,review_count,is_verified,address,latitude,longitude,delivery_radius_km,region,city,area";
+  const baseSelectNoLocation =
+    "id,name,slug,logo_url,phone,email,is_active,status,created_at,owner_id,rating,review_count,is_verified";
   let res;
   if (isPlatformRolePublic(scope.role)) {
     const rpc = await supabase.rpc("get_restaurants_admin", {
@@ -1041,7 +1065,7 @@ export async function fetchRestaurants({ status, search, limit = 200, offset = 0
   if (!res) {
     let q = supabase
       .from("restaurants")
-      .select("id,name,slug,logo_url,phone,email,is_active,status,created_at,owner_id", { count: "exact" })
+      .select(baseSelectWithLocation, { count: "exact" })
       .order("created_at", { ascending: false });
     if (status && status !== "all") q = q.eq("status", status);
     if (search) {
@@ -1049,10 +1073,19 @@ export async function fetchRestaurants({ status, search, limit = 200, offset = 0
       q = q.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
     }
     res = await q.range(offset, offset + limit - 1);
-    if (res.error && isMissingColumnError(res.error, "owner_id")) {
+    if (
+      res.error &&
+      (isMissingColumnError(res.error, "latitude") ||
+        isMissingColumnError(res.error, "longitude") ||
+        isMissingColumnError(res.error, "delivery_radius_km") ||
+        isMissingColumnError(res.error, "region") ||
+        isMissingColumnError(res.error, "city") ||
+        isMissingColumnError(res.error, "area") ||
+        isMissingColumnError(res.error, "address"))
+    ) {
       let qFallback = supabase
         .from("restaurants")
-        .select("id,name,slug,logo_url,phone,email,is_active,status,created_at", { count: "exact" })
+        .select(baseSelectNoLocation, { count: "exact" })
         .order("created_at", { ascending: false });
       if (status && status !== "all") qFallback = qFallback.eq("status", status);
       if (search) {
@@ -1060,6 +1093,72 @@ export async function fetchRestaurants({ status, search, limit = 200, offset = 0
         qFallback = qFallback.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
       }
       res = await qFallback.range(offset, offset + limit - 1);
+    }
+    if (res.error && isMissingColumnError(res.error, "owner_id")) {
+      let qFallback = supabase
+        .from("restaurants")
+        .select(baseSelectNoOwnerWithLocation, { count: "exact" })
+        .order("created_at", { ascending: false });
+      if (status && status !== "all") qFallback = qFallback.eq("status", status);
+      if (search) {
+        const term = `%${search}%`;
+        qFallback = qFallback.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
+      }
+      res = await qFallback.range(offset, offset + limit - 1);
+      if (
+        res.error &&
+        (isMissingColumnError(res.error, "latitude") ||
+          isMissingColumnError(res.error, "longitude") ||
+          isMissingColumnError(res.error, "delivery_radius_km") ||
+          isMissingColumnError(res.error, "region") ||
+          isMissingColumnError(res.error, "city") ||
+          isMissingColumnError(res.error, "area") ||
+          isMissingColumnError(res.error, "address"))
+      ) {
+        let qNoOwnerFallback = supabase
+          .from("restaurants")
+          .select("id,name,slug,logo_url,phone,email,is_active,status,created_at,rating,review_count,is_verified", { count: "exact" })
+          .order("created_at", { ascending: false });
+        if (status && status !== "all") qNoOwnerFallback = qNoOwnerFallback.eq("status", status);
+        if (search) {
+          const term = `%${search}%`;
+          qNoOwnerFallback = qNoOwnerFallback.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
+        }
+        res = await qNoOwnerFallback.range(offset, offset + limit - 1);
+      }
+    }
+    if (res.error && (isMissingColumnError(res.error, "rating") || isMissingColumnError(res.error, "review_count") || isMissingColumnError(res.error, "is_verified"))) {
+      let qFallback = supabase
+        .from("restaurants")
+        .select("id,name,slug,logo_url,phone,email,is_active,status,created_at,owner_id,address,latitude,longitude,delivery_radius_km,region,city,area", { count: "exact" })
+        .order("created_at", { ascending: false });
+      if (status && status !== "all") qFallback = qFallback.eq("status", status);
+      if (search) {
+        const term = `%${search}%`;
+        qFallback = qFallback.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
+      }
+      res = await qFallback.range(offset, offset + limit - 1);
+      if (
+        res.error &&
+        (isMissingColumnError(res.error, "latitude") ||
+          isMissingColumnError(res.error, "longitude") ||
+          isMissingColumnError(res.error, "delivery_radius_km") ||
+          isMissingColumnError(res.error, "region") ||
+          isMissingColumnError(res.error, "city") ||
+          isMissingColumnError(res.error, "area") ||
+          isMissingColumnError(res.error, "address"))
+      ) {
+        let qNoLocationFallback = supabase
+          .from("restaurants")
+          .select("id,name,slug,logo_url,phone,email,is_active,status,created_at,owner_id", { count: "exact" })
+          .order("created_at", { ascending: false });
+        if (status && status !== "all") qNoLocationFallback = qNoLocationFallback.eq("status", status);
+        if (search) {
+          const term = `%${search}%`;
+          qNoLocationFallback = qNoLocationFallback.or(`name.ilike.${term},slug.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
+        }
+        res = await qNoLocationFallback.range(offset, offset + limit - 1);
+      }
     }
     if (res.error) return res;
   }

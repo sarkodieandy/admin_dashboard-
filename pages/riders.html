@@ -149,6 +149,7 @@
 	                  <th>Phone</th>
 	                  <th>Vehicle</th>
 	                  <th>Status</th>
+	                  <th>Location</th>
 	                  <th>Added</th>
 	                  <th></th>
 	                </tr>
@@ -340,12 +341,12 @@
     load();
 
     async function load() {
-      tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
       const rawBranch = getSelectedBranchId();
       const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
       const { data, error } = await fetchRiders({ branchId });
       if (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`;
         updateStats([]);
         return;
       }
@@ -353,7 +354,7 @@
       if (!data || data.length === 0) {
         tbody.innerHTML = `
           <tr class="table-empty">
-            <td colspan="6">
+            <td colspan="7">
               <div class="flex-between" style="gap:12px;">
                 <div>
                   <div class="font-semibold">No riders yet</div>
@@ -376,6 +377,18 @@
           const statusTag = r.is_active
             ? '<span class="chip success">Active</span>'
             : '<span class="chip muted">Inactive</span>';
+          const availability = r.availability_status || r.rider_status || "offline";
+          const availabilityTag = availability === "online"
+            ? '<span class="chip success">Online</span>'
+            : availability === "busy"
+              ? '<span class="chip warning">Busy</span>'
+              : '<span class="chip muted">Offline</span>';
+          const lat = r.current_latitude ?? r.last_lat ?? null;
+          const lng = r.current_longitude ?? r.last_lng ?? null;
+          const locationLabel = lat != null && lng != null
+            ? `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`
+            : "No GPS yet";
+          const locationTime = r.last_location_update || r.last_location_at || "";
           return `
             <tr data-id="${r.id}">
               <td>
@@ -386,8 +399,12 @@
               <td>${escapeHtml(r.phone || "—")}</td>
               <td>${escapeHtml(r.vehicle_type || "Unspecified")}</td>
               <td>
-                <div style="display:flex; align-items:center; gap:6px;">${statusTag}</div>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${statusTag}${availabilityTag}</div>
                 <div class="muted text-xs">${escapeHtml(notePreview)}</div>
+              </td>
+              <td>
+                <div class="mono text-sm">${escapeHtml(locationLabel)}</div>
+                <div class="muted text-xs">${locationTime ? `Updated ${fmtDateTime(locationTime)}` : "Waiting for rider app"}</div>
               </td>
               <td><span class="muted text-sm">Updated ${fmtDateTime(r.created_at || "")}</span></td>
               <td>

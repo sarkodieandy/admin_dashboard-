@@ -167,6 +167,21 @@
               <label class="label">Address</label>
               <textarea class="textarea" id="branchAddress" rows="2"></textarea>
               <div style="height:10px;"></div>
+              <div class="grid" style="grid-template-columns:repeat(3, 1fr); gap:10px;">
+                <div>
+                  <label class="label">Region</label>
+                  <input class="input" id="branchRegion" placeholder="Greater Accra" />
+                </div>
+                <div>
+                  <label class="label">City</label>
+                  <input class="input" id="branchCity" placeholder="Accra" />
+                </div>
+                <div>
+                  <label class="label">Area</label>
+                  <input class="input" id="branchArea" placeholder="East Legon" />
+                </div>
+              </div>
+              <div style="height:10px;"></div>
               <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
                 <div>
                   <label class="label">Lat</label>
@@ -177,6 +192,9 @@
                   <input class="input" id="branchLng" type="number" step="any" />
                 </div>
               </div>
+              <div style="height:10px;"></div>
+              <label class="label">Delivery radius (km)</label>
+              <input class="input" id="branchRadius" type="number" min="1" step="0.1" placeholder="8" />
               <div style="height:12px;"></div>
               <label class="pill-toggle">
                 <input type="checkbox" id="branchIsActive" checked />
@@ -201,6 +219,8 @@
 	                  <tr>
 	                    <th>Name</th>
 	                    <th>Address</th>
+	                    <th>Service area</th>
+	                    <th>Radius</th>
 	                    <th>Status</th>
 	                    <th>Open</th>
 	                    <th>Created</th>
@@ -242,8 +262,12 @@
       const subtitle = document.getElementById("branchModalSubtitle");
       const nameEl = document.getElementById("branchName");
       const addrEl = document.getElementById("branchAddress");
+      const regionEl = document.getElementById("branchRegion");
+      const cityEl = document.getElementById("branchCity");
+      const areaEl = document.getElementById("branchArea");
       const latEl = document.getElementById("branchLat");
       const lngEl = document.getElementById("branchLng");
+      const radiusEl = document.getElementById("branchRadius");
       const activeEl = document.getElementById("branchIsActive");
       const openEl = document.getElementById("branchIsOpen");
       const restaurantFilterWrap = document.getElementById("restaurantFilterWrap");
@@ -321,8 +345,12 @@
         }
         nameEl.value = editing?.name || "";
         addrEl.value = editing?.address || "";
+        regionEl.value = editing?.region || "";
+        cityEl.value = editing?.city || "";
+        areaEl.value = editing?.area || "";
         latEl.value = editing?.lat ?? "";
         lngEl.value = editing?.lng ?? "";
+        radiusEl.value = editing?.delivery_radius_km ?? "";
         activeEl.checked = editing?.is_active ?? true;
         openEl.checked = editing?.is_open ?? true;
         saveBranchBtn.textContent = editing ? "Update branch" : "Save branch";
@@ -338,8 +366,12 @@
           id: editing?.id,
           name: nameEl.value.trim(),
           address: addrEl.value.trim() || null,
+          region: regionEl.value.trim() || null,
+          city: cityEl.value.trim() || null,
+          area: areaEl.value.trim() || null,
           lat: latEl.value ? Number(latEl.value) : null,
           lng: lngEl.value ? Number(lngEl.value) : null,
+          delivery_radius_km: radiusEl.value ? Number(radiusEl.value) : null,
           is_active: !!activeEl.checked,
           is_open: !!openEl.checked,
         };
@@ -378,7 +410,7 @@
       await load();
 
       async function load() {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8"><div class="skeleton" style="height:32px;"></div></td></tr>`;
         const restaurantId =
           marketplaceReady && isPlatform && selectedRestaurantId !== "all"
             ? selectedRestaurantId
@@ -388,14 +420,14 @@
           console.error("[E][branch] branches_page_load_failed", error);
           const msg = String(error.message || "");
           if (error.code === "42P17" || msg.toLowerCase().includes("infinite recursion")) {
-            tbody.innerHTML = `<tr><td colspan="6" class="muted">Database branch RLS recursion. Run migrations 0074_fix_branches_rls_recursion.sql and 0075_fix_branches_staff_access_recursion.sql in Supabase.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="muted">Database branch RLS recursion. Run migrations 0074_fix_branches_rls_recursion.sql and 0075_fix_branches_staff_access_recursion.sql in Supabase.</td></tr>`;
             return;
           }
           if (msg.toLowerCase().includes("non volatile") || msg.toLowerCase().includes("non-volatile")) {
-            tbody.innerHTML = `<tr><td colspan="6" class="muted">Branch admin RPC is outdated. Run migrations 0072_fix_rpc_volatility.sql and 0079_harden_branch_admin_rpc_nonrecursive.sql in Supabase.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="muted">Branch admin RPC is outdated. Run migrations 0072_fix_rpc_volatility.sql and 0079_harden_branch_admin_rpc_nonrecursive.sql in Supabase.</td></tr>`;
             return;
           }
-          tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${error.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="muted">Error: ${error.message}</td></tr>`;
           return;
         }
         const branches = data || [];
@@ -407,13 +439,18 @@
           statTotal.textContent = branches.length;
         }
         if (!branches.length) {
-          tbody.innerHTML = `<tr><td colspan="6" class="muted">No branches yet</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="muted">No branches yet</td></tr>`;
           return;
         }
         tbody.innerHTML = branches
           .map((b) => {
             const status = b.is_active ? '<span class="chip success">Active</span>' : '<span class="chip muted">Inactive</span>';
             const open = b.is_open ? '<span class="chip success">Open</span>' : '<span class="chip danger">Closed</span>';
+            const locality = [b.area, b.city, b.region].filter(Boolean).join(", ");
+            const hasGps = b.lat != null && b.lng != null;
+            const locationBadge = hasGps
+              ? '<span class="chip success">GPS linked</span>'
+              : '<span class="chip danger">Missing GPS</span>';
             const restaurantLabel =
               isPlatform && b.restaurant_id && restaurantById.has(b.restaurant_id)
                 ? `<div class="muted text-xs">${escapeHtml(restaurantById.get(b.restaurant_id))}</div>`
@@ -425,7 +462,12 @@
                   ${restaurantLabel}
                   <div class="muted text-xs mono">${b.id.slice(0, 8)}…</div>
                 </td>
-                <td class="muted">${escapeHtml((b.address || "").trim() || "—")}</td>
+                <td class="muted">
+                  ${escapeHtml((b.address || "").trim() || "—")}
+                  <div class="muted text-xs">${locationBadge}</div>
+                </td>
+                <td class="muted">${escapeHtml(locality || "—")}</td>
+                <td class="muted">${escapeHtml(b.delivery_radius_km ?? "8")} km</td>
                 <td>${status}</td>
                 <td>${open}</td>
                 <td class="muted">${fmtDateTime(b.created_at || "")}</td>
