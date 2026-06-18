@@ -35,16 +35,16 @@
   --color-blueblack-strong: #050b16;
 
   /* shadows */
-  --shadow-xs: 0 4px 14px rgba(232, 93, 4, 0.10);
-  --shadow-sm: 0 12px 30px rgba(232, 93, 4, 0.12);
-  --shadow-lg: 0 22px 56px rgba(232, 93, 4, 0.16);
+  --shadow-xs: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 22px 56px rgba(15, 23, 42, 0.14);
 }
 
 :root[data-theme="light"] {
   --color-bg: #ffffff;
   --color-panel: #ffffff;
-  --color-surface: #fff5ec;
-  --color-border: #f1c7a3;
+  --color-surface: #f8fafc;
+  --color-border: #e5e7eb;
   --color-text: #1f1a17;
   --color-muted: #746d68;
   --color-primary: #e85d04;
@@ -56,7 +56,7 @@
   --color-warning: #e85d04;
   --color-danger: #c2410c;
   --color-info: #e85d04;
-  --shadow-color: rgba(232, 93, 4, 0.14);
+  --shadow-color: rgba(15, 23, 42, 0.10);
   color-scheme: light;
 }
 
@@ -91,8 +91,13 @@
 }
 
 @keyframes slide-in-left {
-  from { opacity: 0; transform: translateX(-10px); }
+  from { opacity: 0; transform: translateX(-18px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes sidebar-rail-in {
+  from { opacity: 0; transform: translateX(-18px) scaleX(0.98); }
+  to { opacity: 1; transform: translateX(0) scaleX(1); }
 }
 
 @keyframes soft-pop {

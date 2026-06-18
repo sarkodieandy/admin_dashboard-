@@ -86,6 +86,20 @@
       border-radius: 16px;
       background: #fbfcff;
     }
+    .item-category-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .category-empty-note {
+      padding: 12px;
+      border: 1px dashed var(--color-border);
+      background: #fff;
+      color: var(--color-muted);
+      border-radius: 14px;
+      font-size: 14px;
+    }
     .category-preset-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
@@ -209,7 +223,10 @@
         <div class="flex-between" style="gap:8px;">
           <div style="flex:1;">
             <div class="label">Category</div>
-            <select class="input" name="category_id" required id="itemCatSelect"></select>
+            <div class="item-category-row">
+              <select class="input" name="category_id" required id="itemCatSelect"></select>
+              <button class="btn secondary" id="createCategoryFromItem" type="button">New category</button>
+            </div>
             <div id="itemCategoryPreview" class="category-preview" style="margin-top:10px;">
               <span class="category-icon-badge"><span id="itemCategoryPreviewIcon" class="category-symbol">restaurant_menu</span></span>
               <div>
@@ -362,6 +379,7 @@
 	    let addons = [];
 	    let editingItemId = null;
 	    let editingItemBranchId = null;
+	    let returnToItemAfterCategory = false;
 	    let selectedImageObjectUrl = null;
 	    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(profile.role);
       const CATEGORY_PRESETS = [
@@ -476,6 +494,14 @@
 	    document.getElementById("addItemBtn").addEventListener("click", () => openItemModal());
 	    document.getElementById("addCategoryBtn").addEventListener("click", () => openCategoryModal());
 	    document.getElementById("addAddonBtn").addEventListener("click", () => toggleModal(addonModal, true));
+	    document.getElementById("createCategoryFromItem").addEventListener("click", () => {
+	      const currentBranch =
+	        itemBranchRow.style.display === "none"
+	          ? editingItemBranchId
+	          : itemBranchSelect.value;
+	      toggleModal(itemModal, false);
+	      openCategoryModal({ branchId: currentBranch, returnToItem: true });
+	    });
 	    document.querySelectorAll("[data-close]").forEach((btn) => btn.addEventListener("click", () => toggleModal(document.getElementById(btn.dataset.close), false)));
 	    searchInput.addEventListener("input", renderItems);
 	    filterCategory.addEventListener("change", renderItems);
@@ -522,6 +548,7 @@
 	        ? editingItemBranchId
 	        : (branchId || (isSuper ? itemBranchSelect.value : null));
 	      if (!uploadBranchId) return showToast("Select a branch");
+	      if (!payload.category_id) return showToast("Select the food category this item belongs to");
 
 	      // Insert first (to get an id) then upload (if any) and update image_url with the storage path.
 	      if (!isEdit) {
@@ -573,6 +600,10 @@
 	      e.target.reset();
 	      categoryBranchRow.style.display = "none";
 	      await loadData();
+	      if (returnToItemAfterCategory) {
+	        returnToItemAfterCategory = false;
+	        openItemModal(null, { branchId: selected });
+	      }
 	    });
 
 	    document.getElementById("addonForm").addEventListener("submit", async (e) => {
@@ -630,22 +661,22 @@
 	      }
 	      if (!list.length) {
 	        select.disabled = true;
-	        select.innerHTML = `<option value="">No categories for this branch</option>`;
+	        select.innerHTML = `<option value="">Create a category first</option>`;
           updateItemCategoryPreview(null);
 	        return;
 	      }
 	      select.disabled = false;
-	      select.innerHTML = list
+	      select.innerHTML = `<option value="">Select category</option>` + list
 	        .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
 	        .join("");
-        const nextValue = list.some((c) => c.id === previousValue) ? previousValue : list[0].id;
+        const nextValue = list.some((c) => c.id === previousValue) ? previousValue : "";
         select.value = nextValue;
         updateItemCategoryPreview(select.value);
 	    }
 
-	    function openItemModal(item = null) {
+	    function openItemModal(item = null, options = {}) {
 	      const rawBranch = getSelectedBranchId();
-	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      const branchId = options.branchId || (rawBranch && rawBranch !== "all" ? rawBranch : null);
 	      const isAll = rawBranch === "all";
 	      if (!branchId && !item?.branch_id && !(isSuper && isAll)) {
 	        return showToast("Select a branch first");
@@ -693,16 +724,17 @@
 	      toggleModal(itemModal, true);
 	    }
 
-	    function openCategoryModal() {
+	    function openCategoryModal(options = {}) {
 	      const rawBranch = getSelectedBranchId();
-	      const branchId = rawBranch && rawBranch !== "all" ? rawBranch : null;
+	      const branchId = options.branchId || (rawBranch && rawBranch !== "all" ? rawBranch : null);
 	      const isAll = rawBranch === "all";
 	      if (!branchId && !isSuper) return showToast("Select a branch first");
 
 	      const form = document.getElementById("categoryForm");
 	      form.reset();
+	      returnToItemAfterCategory = Boolean(options.returnToItem);
 	      if (isSuper && isAll) {
-	        const defaultBranchId = getBranches()[0]?.id || "";
+	        const defaultBranchId = branchId || getBranches()[0]?.id || "";
 	        categoryBranchRow.style.display = "";
 	        fillBranchSelect(categoryBranchSelect, { placeholder: "Select branch", selected: defaultBranchId });
 	      } else {
@@ -799,7 +831,12 @@
       if (avail === "soldout") filtered = filtered.filter((i) => i.is_sold_out);
       if (avail === "inactive") filtered = filtered.filter((i) => !i.is_active);
       if (!filtered.length) {
-        itemsTbody.innerHTML = `<tr><td colspan="6" class="muted">No items match</td></tr>`;
+        const hasCategories = categories.length > 0;
+        itemsTbody.innerHTML = `<tr><td colspan="6">
+          <div class="category-empty-note">
+            ${hasCategories ? "No items match your filters." : "Create a category first, then add menu items to it."}
+          </div>
+        </td></tr>`;
         return;
       }
 	      itemsTbody.innerHTML = filtered
