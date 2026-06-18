@@ -100,69 +100,6 @@
       letter-spacing: -0.2px;
     }
 
-    .role-picker {
-      display: grid;
-      gap: 10px;
-    }
-
-    .role-btn {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 12px 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(148, 163, 184, 0.22);
-      background: rgba(255,255,255,0.06);
-      color: rgba(255,255,255,0.86);
-      cursor: pointer;
-      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
-    }
-
-    .role-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.08); }
-
-    .role-btn.active {
-      background: linear-gradient(90deg, rgba(249,115,22,0.28), rgba(249,115,22,0.10));
-      border-color: rgba(249,115,22,0.55);
-      box-shadow: 0 18px 50px rgba(249,115,22,0.12);
-    }
-
-    .role-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
-
-    .role-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      flex: 0 0 auto;
-    }
-
-    .role-label {
-      font-size: 16px;
-      font-weight: 850;
-      letter-spacing: -0.15px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .role-check {
-      opacity: 0;
-      transform: translateY(1px);
-      transition: opacity 120ms ease;
-      font-weight: 900;
-    }
-    .role-btn.active .role-check { opacity: 1; }
-
     .field {
       display: grid;
       gap: 8px;
@@ -289,40 +226,8 @@
         <div class="panel-divider"></div>
 
         <div>
-          <h2 class="section-title">Select Admin Role</h2>
-          <div class="brand-subtitle" style="margin-top:6px;">Access is verified after sign‑in.</div>
-        </div>
-
-        <div class="role-picker" id="rolePicker">
-          <button class="role-btn active" type="button" data-role="staff">
-            <span class="role-left">
-              <span class="role-icon" aria-hidden="true">👤</span>
-              <span class="role-label">Staff</span>
-            </span>
-            <span class="role-check" aria-hidden="true">✓</span>
-          </button>
-          <button class="role-btn" type="button" data-role="branch_admin">
-            <span class="role-left">
-              <span class="role-icon" aria-hidden="true">🏬</span>
-              <span class="role-label">Branch Admin</span>
-            </span>
-            <span class="role-check" aria-hidden="true">✓</span>
-          </button>
-          <button class="role-btn" type="button" data-role="restaurant_owner">
-            <span class="role-left">
-              <span class="role-icon" aria-hidden="true">🏪</span>
-              <span class="role-label">Restaurant Owner</span>
-            </span>
-            <span class="role-check" aria-hidden="true">✓</span>
-          </button>
-          <button class="role-btn" type="button" data-role="platform_admin">
-            <span class="role-left">
-              <span class="role-icon" aria-hidden="true">🛡️</span>
-              <span class="role-label">Platform Admin</span>
-            </span>
-            <span class="role-check" aria-hidden="true">✓</span>
-          </button>
-          <input id="loginAs" name="loginAs" type="hidden" value="staff" />
+          <h2 class="section-title">Sign in</h2>
+          <div class="brand-subtitle" style="margin-top:6px;">Enter your admin email and password. Your workspace opens based on your backend role.</div>
         </div>
 
         <div id="fileWarn" class="card" style="padding:12px; box-shadow:none; border:1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.10); display:none;">
@@ -377,7 +282,6 @@
     const errorEl = document.getElementById("loginError");
     const submitBtn = document.getElementById("submitBtn");
     const submitLabel = document.getElementById("submitLabel");
-    const loginAsEl = document.getElementById("loginAs");
 
     mountThemeToggle();
     document.getElementById("themeBtn").addEventListener("click", () => {
@@ -391,13 +295,6 @@
 
     document.getElementById("year").textContent = String(new Date().getFullYear());
 
-    const roleButtons = Array.from(document.querySelectorAll("#rolePicker .role-btn"));
-    function setRole(role) {
-      loginAsEl.value = role;
-      roleButtons.forEach((b) => b.classList.toggle("active", b.dataset.role === role));
-    }
-    roleButtons.forEach((b) => b.addEventListener("click", () => setRole(b.dataset.role)));
-
     document.getElementById("forgotBtn").addEventListener("click", () => {
       showToast("Ask the owner to reset your password.");
     });
@@ -405,7 +302,6 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
-      const loginAs = (loginAsEl?.value || "staff").trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
       if (!email || !password) {
@@ -426,54 +322,60 @@
 
       // Ensure staff-only access is clear (no confusing redirect loops).
       const userId = signInData?.user?.id || signInData?.session?.user?.id || null;
-      let resolvedRole = loginAs;
-      if (userId) {
-        let { data: profile, error: profileErr } = await fetchProfile(userId);
-        if (profileErr) {
-          console.error("profile_fetch_error", profileErr);
-          await supabase.auth.signOut();
-          const code = profileErr.code ? ` (${profileErr.code})` : "";
-          errorEl.textContent = `Profile not accessible${code}. ${profileErr.message || "Ask an admin to sync your profile or apply the latest migrations."}`;
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-        let role = normalizeRole(profile?.role);
-        if (!isStaffRole(role)) {
-          // Attempt auto-upgrade for partner owners who already own a pending restaurant.
-          const { data: restaurants } = await supabase
-            .from("restaurants")
-            .select("id,status")
-            .eq("owner_id", userId)
-            .order("created_at", { ascending: false })
-            .limit(1);
-          const owned = Array.isArray(restaurants) ? restaurants[0] : null;
-          if (owned?.id) {
-            const { error: upgradeErr } = await supabase.from("profiles").update({
-              role: "restaurant_owner",
-              restaurant_id: owned.id,
-            }).eq("id", userId);
-            if (!upgradeErr) {
-              profile = { ...(profile || {}), role: "restaurant_owner", restaurant_id: owned.id };
-              role = "restaurant_owner";
-            }
+      if (!userId) {
+        await supabase.auth.signOut();
+        errorEl.textContent = "Could not read the signed-in user. Please try again.";
+        submitBtn.disabled = false;
+        submitLabel.textContent = "Login";
+        return;
+      }
+
+      let resolvedRole = null;
+      let { data: profile, error: profileErr } = await fetchProfile(userId);
+      if (profileErr) {
+        console.error("profile_fetch_error", profileErr);
+        await supabase.auth.signOut();
+        const code = profileErr.code ? ` (${profileErr.code})` : "";
+        errorEl.textContent = `Profile not accessible${code}. ${profileErr.message || "Ask an admin to sync your profile or apply the latest migrations."}`;
+        submitBtn.disabled = false;
+        submitLabel.textContent = "Login";
+        return;
+      }
+      let role = normalizeRole(profile?.role);
+      if (!isStaffRole(role)) {
+        // Attempt auto-upgrade for partner owners who already own a pending restaurant.
+        const { data: restaurants } = await supabase
+          .from("restaurants")
+          .select("id,status")
+          .eq("owner_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const owned = Array.isArray(restaurants) ? restaurants[0] : null;
+        if (owned?.id) {
+          const { error: upgradeErr } = await supabase.from("profiles").update({
+            role: "restaurant_owner",
+            restaurant_id: owned.id,
+          }).eq("id", userId);
+          if (!upgradeErr) {
+            profile = { ...(profile || {}), role: "restaurant_owner", restaurant_id: owned.id };
+            role = "restaurant_owner";
           }
         }
-        if (!isStaffRole(role)) {
-          await supabase.auth.signOut();
-          const roleLabel = role ? role.replaceAll("_", " ") : "customer";
-          errorEl.textContent = `Access denied. Your role is ${roleLabel}. Ask a platform admin to set your role.`;
-          submitBtn.disabled = false;
-          submitLabel.textContent = "Login";
-          return;
-        }
-
-        // Help the sidebar render immediately after redirect.
-        try {
-          cacheSessionProfile({ ...profile, id: userId, role }, userId);
-        } catch {}
-        resolvedRole = role || loginAs;
       }
+      if (!isStaffRole(role)) {
+        await supabase.auth.signOut();
+        const roleLabel = role ? role.replaceAll("_", " ") : "customer";
+        errorEl.textContent = `Access denied. Your role is ${roleLabel}. Ask a platform admin to set your role.`;
+        submitBtn.disabled = false;
+        submitLabel.textContent = "Login";
+        return;
+      }
+
+      // Help the sidebar render immediately after redirect.
+      try {
+        cacheSessionProfile({ ...profile, id: userId, role }, userId);
+      } catch {}
+      resolvedRole = role;
 
       showToast("Signed in");
       submitLabel.textContent = "Opening workspace…";
