@@ -3,7 +3,7 @@ import { getClient, getCurrentScope, isPlatformRolePublic } from "./auth.js";
 const supabase = getClient();
 
 const ORDER_FIELDS =
-  "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id,branch_id";
+  "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id,branch_id,restaurant_id,pickup_address,pickup_latitude,pickup_longitude,delivery_latitude,delivery_longitude,delivery_distance_km,selected_region,selected_city,selected_area,vendor_region,vendor_city,vendor_area";
 const DELIVERY_WITH_RIDER =
   "id,order_id,rider_id,status,assigned_at,picked_at,delivered_at,updated_at,rider:riders(id,name,phone,vehicle_type,is_active)";
 const LEGACY_RESTAURANT_SLUG = "legacy-default";
@@ -26,8 +26,15 @@ function scopeFilter(query, { useBranch = true } = {}) {
 function isMissingColumnError(error, columnName) {
   const msg = String(error?.message || "");
   if (!msg) return false;
-  if (columnName && !msg.includes(columnName)) return false;
-  return error?.code === "PGRST204" || /could not find .* column/i.test(msg);
+  const lowerMsg = msg.toLowerCase();
+  const col = String(columnName || "").toLowerCase();
+  if (col && !lowerMsg.includes(col)) return false;
+  return (
+    error?.code === "PGRST204" ||
+    error?.code === "42703" ||
+    /could not find .* column/i.test(msg) ||
+    (lowerMsg.includes("column") && lowerMsg.includes("does not exist"))
+  );
 }
 
 export async function fetchOrdersAdvanced({
@@ -38,6 +45,9 @@ export async function fetchOrdersAdvanced({
   dateTo,
   minTotal,
   branchId,
+  restaurantId,
+  region,
+  city,
   limit = 50,
   offset = 0,
 }) {
@@ -49,6 +59,9 @@ export async function fetchOrdersAdvanced({
   if (dateTo) q = q.lte("created_at", dateTo);
   if (minTotal) q = q.gte("total", minTotal);
   if (branchId) q = q.eq("branch_id", branchId);
+  if (restaurantId) q = q.eq("restaurant_id", restaurantId);
+  if (region) q = q.eq("selected_region", region);
+  if (city) q = q.eq("selected_city", city);
   if (search) {
     q = q.or(`id.ilike.%${search}%,address_snapshot::text.ilike.%${search}%`);
   }
@@ -374,7 +387,35 @@ export async function markAllNotificationsRead() {
   return supabase.from("staff_notifications").update({ is_read: true }).eq("is_read", false);
 }
 
-export async function fetchRiders({ activeOnly = false, search = "", branchId } = {}) {
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const rLat1 = toRad(lat1);
+  const rLat2 = toRad(lat2);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(rLat1) * Math.cos(rLat2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+export async function fetchRiders({
+  activeOnly = false,
+  availableOnly = false,
+  search = "",
+  branchId,
+  region,
+  city,
+  nearbyTo,
+} = {}) {
   let q = supabase
     .from("riders")
     // Use `*` to stay backward compatible if columns differ (e.g. default_delivery_note not yet migrated).
@@ -408,7 +449,7 @@ export async function fetchRiders({ activeOnly = false, search = "", branchId } 
   }
 
   const profileById = new Map((profilesRes.data || []).map((row) => [row.id, row]));
-  const enriched = (ridersRes.data || []).map((rider) => {
+  const enrichedBase = (ridersRes.data || []).map((rider) => {
     const profile = profileById.get(rider.user_id) || {};
     return {
       ...rider,
@@ -419,6 +460,103 @@ export async function fetchRiders({ activeOnly = false, search = "", branchId } 
       profile_is_active: profile.is_active ?? null,
     };
   });
+
+  const riderIds = [...new Set(enrichedBase.map((entry) => String(entry?.id || "").trim()).filter(Boolean))];
+  const activeDeliveryCountByRider = new Map();
+  if (riderIds.length) {
+    const activeDeliveriesRes = await supabase
+      .from("deliveries")
+      .select("rider_id,status")
+      .in("rider_id", riderIds)
+      .in("status", ["assigned", "picked_up", "en_route"]);
+    if (activeDeliveriesRes.error) {
+      console.warn("[W][riders] active_delivery_lookup_failed", { error: activeDeliveriesRes.error });
+    } else {
+      for (const row of activeDeliveriesRes.data || []) {
+        const riderId = String(row?.rider_id || "").trim();
+        if (!riderId) continue;
+        activeDeliveryCountByRider.set(
+          riderId,
+          Number(activeDeliveryCountByRider.get(riderId) || 0) + 1,
+        );
+      }
+    }
+  }
+
+  let enriched = enrichedBase.map((rider) => {
+    const riderId = String(rider?.id || "").trim();
+    const approvalStatus = String(rider?.approval_status || "").trim().toLowerCase();
+    const riderStatus = String(rider?.rider_status || "").trim().toLowerCase();
+    const activeDeliveries = Number(activeDeliveryCountByRider.get(riderId) || 0);
+    const isApproved = approvalStatus === "" || approvalStatus === "approved";
+    const isOnline = riderStatus === "online";
+    const isAvailable =
+      rider?.is_active !== false &&
+      rider?.profile_is_active !== false &&
+      isApproved &&
+      isOnline &&
+      activeDeliveries === 0;
+    return {
+      ...rider,
+      approval_status: approvalStatus || null,
+      active_delivery_count: activeDeliveries,
+      is_available: isAvailable,
+    };
+  });
+
+  const regionFilter = String(region || "").trim().toLowerCase();
+  if (regionFilter) {
+    enriched = enriched.filter((rider) => {
+      const riderRegion = String(rider?.current_region || "").trim().toLowerCase();
+      return riderRegion === regionFilter;
+    });
+  }
+
+  const cityFilter = String(city || "").trim().toLowerCase();
+  if (cityFilter) {
+    enriched = enriched.filter((rider) => {
+      const riderCity = String(rider?.current_city || "").trim().toLowerCase();
+      return riderCity === cityFilter;
+    });
+  }
+
+  const hasNearbyTarget =
+    nearbyTo &&
+    Number.isFinite(Number(nearbyTo.lat)) &&
+    Number.isFinite(Number(nearbyTo.lng));
+  if (hasNearbyTarget) {
+    const targetLat = Number(nearbyTo.lat);
+    const targetLng = Number(nearbyTo.lng);
+    const maxDistanceKm =
+      Number.isFinite(Number(nearbyTo.maxDistanceKm)) && Number(nearbyTo.maxDistanceKm) > 0
+        ? Number(nearbyTo.maxDistanceKm)
+        : null;
+    enriched = enriched
+      .map((rider) => {
+        const lat = toNumberOrNull(rider.last_lat);
+        const lng = toNumberOrNull(rider.last_lng);
+        const distanceKm =
+          lat == null || lng == null ? null : haversineKm(targetLat, targetLng, lat, lng);
+        return {
+          ...rider,
+          distance_km: distanceKm,
+        };
+      })
+      .filter((rider) => {
+        if (maxDistanceKm == null) return true;
+        return rider.distance_km == null || rider.distance_km <= maxDistanceKm;
+      })
+      .sort((a, b) => {
+        const ad = Number.isFinite(a.distance_km) ? a.distance_km : 9999;
+        const bd = Number.isFinite(b.distance_km) ? b.distance_km : 9999;
+        if (ad !== bd) return ad - bd;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+  }
+
+  if (availableOnly) {
+    enriched = enriched.filter((rider) => rider.is_available);
+  }
 
   return {
     ...ridersRes,
@@ -1222,7 +1360,114 @@ export async function linkOwnerToRestaurant({ restaurantId, userId }) {
 }
 
 export async function updateRestaurant(restaurantId, payload) {
-  return supabase.from("restaurants").update(payload).eq("id", restaurantId).select("id").maybeSingle();
+  const nextPayload = { ...payload };
+  const locationKeys = [
+    "address",
+    "region",
+    "city",
+    "area",
+    "latitude",
+    "longitude",
+    "delivery_radius_km",
+  ];
+
+  // Save restaurant-level location first.
+  let res = await supabase
+    .from("restaurants")
+    .update(nextPayload)
+    .eq("id", restaurantId)
+    .select("id")
+    .maybeSingle();
+
+  // Backward compatibility for schemas missing some location columns.
+  if (res.error) {
+    let fallbackPayload = { ...nextPayload };
+    let changed = false;
+    for (const key of locationKeys) {
+      if (key in fallbackPayload && isMissingColumnError(res.error, key)) {
+        delete fallbackPayload[key];
+        changed = true;
+      }
+    }
+    if (changed) {
+      res = await supabase
+        .from("restaurants")
+        .update(fallbackPayload)
+        .eq("id", restaurantId)
+        .select("id")
+        .maybeSingle();
+    }
+  }
+
+  if (res.error) return res;
+
+  const hasLocationUpdate = locationKeys.some((k) => k in nextPayload);
+  if (!hasLocationUpdate) return res;
+
+  // Keep at least one active branch aligned with restaurant location so
+  // customer delivery checks and fee calculation stay consistent.
+  const branchLocationPayload = {};
+  if ("address" in nextPayload) branchLocationPayload.address = nextPayload.address ?? null;
+  if ("region" in nextPayload) branchLocationPayload.region = nextPayload.region ?? null;
+  if ("city" in nextPayload) branchLocationPayload.city = nextPayload.city ?? null;
+  if ("area" in nextPayload) branchLocationPayload.area = nextPayload.area ?? null;
+  if ("latitude" in nextPayload) branchLocationPayload.lat = nextPayload.latitude ?? null;
+  if ("longitude" in nextPayload) branchLocationPayload.lng = nextPayload.longitude ?? null;
+  if ("delivery_radius_km" in nextPayload) {
+    branchLocationPayload.delivery_radius_km = nextPayload.delivery_radius_km ?? null;
+  }
+
+  if (!Object.keys(branchLocationPayload).length) return res;
+
+  try {
+    let branchRow = await scopeFilter(
+      supabase
+        .from("branches")
+        .select("id")
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+        .limit(1),
+      { useBranch: false },
+    ).maybeSingle();
+
+    if (branchRow.error && isMissingColumnError(branchRow.error, "restaurant_id")) {
+      branchRow = await scopeFilter(
+        supabase
+          .from("branches")
+          .select("id")
+          .eq("is_active", true)
+          .order("created_at", { ascending: true })
+          .limit(1),
+        { useBranch: false },
+      ).maybeSingle();
+    }
+
+    if (branchRow.error || !branchRow.data?.id) return res;
+
+    let branchUpdate = await supabase
+      .from("branches")
+      .update(branchLocationPayload)
+      .eq("id", branchRow.data.id);
+
+    if (branchUpdate.error) {
+      const retryPayload = { ...branchLocationPayload };
+      let changed = false;
+      for (const key of Object.keys(retryPayload)) {
+        if (isMissingColumnError(branchUpdate.error, key)) {
+          delete retryPayload[key];
+          changed = true;
+        }
+      }
+      if (changed && Object.keys(retryPayload).length) {
+        branchUpdate = await supabase.from("branches").update(retryPayload).eq("id", branchRow.data.id);
+      }
+    }
+  } catch (_) {
+    // Keep restaurant update successful even if branch sync fallback fails.
+  }
+
+  return res;
 }
 
 export async function upsertRestaurantBilling(restaurantId, payload) {

@@ -164,7 +164,7 @@
       <header>
         <div>
           <div class="font-semibold">Assign rider</div>
-          <div class="muted text-sm">Only active riders appear here.</div>
+          <div class="muted text-sm">Only approved, online, available riders appear here.</div>
         </div>
         <button class="btn ghost" id="closeAssignModal">✕</button>
       </header>
@@ -382,6 +382,26 @@
       const o = order.data;
       currentOrder = o;
       const address = o.address_snapshot?.address || o.address_snapshot?.label || "No address";
+      const selectedRegion = o.selected_region || o.address_snapshot?.region || "";
+      const selectedCity = o.selected_city || o.address_snapshot?.city || "";
+      const selectedArea = o.selected_area || o.address_snapshot?.area || "";
+      const deliveryLocality = [selectedArea, selectedCity, selectedRegion].filter(Boolean).join(", ");
+      const vendorRegion = o.vendor_region || "";
+      const vendorCity = o.vendor_city || "";
+      const vendorArea = o.vendor_area || "";
+      const vendorLocality = [vendorArea, vendorCity, vendorRegion].filter(Boolean).join(", ");
+      const pickupAddress = o.pickup_address || "Pickup address missing";
+      const pickupCoords =
+        Number.isFinite(Number(o.pickup_latitude)) && Number.isFinite(Number(o.pickup_longitude))
+          ? `${Number(o.pickup_latitude).toFixed(5)}, ${Number(o.pickup_longitude).toFixed(5)}`
+          : "No pickup GPS";
+      const dropoffCoords =
+        Number.isFinite(Number(o.delivery_latitude)) && Number.isFinite(Number(o.delivery_longitude))
+          ? `${Number(o.delivery_latitude).toFixed(5)}, ${Number(o.delivery_longitude).toFixed(5)}`
+          : "No dropoff GPS";
+      const distanceLabel = Number.isFinite(Number(o.delivery_distance_km))
+        ? `${Number(o.delivery_distance_km).toFixed(2)} km`
+        : "Distance unavailable";
       const itemHtml = (items.data || [])
         .map(
           (i) => `<div class="flex-between"><div>${i.name_snapshot} ×${i.qty}</div><div>${fmtMoney(i.price)}</div></div>`
@@ -398,6 +418,29 @@
         <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
           <div class="flex-between"><div class="font-semibold">Customer</div><div class="text-sm muted">${o.user_id.slice(0,8)}</div></div>
           <div class="muted text-sm">${address}</div>
+          ${
+            deliveryLocality
+              ? `<div class="muted text-xs" style="margin-top:6px;">Area: ${escapeHtml(deliveryLocality)}</div>`
+              : ""
+          }
+        </div>
+        <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
+          <div class="font-semibold" style="margin-bottom:8px;">Delivery location</div>
+          <div class="muted text-sm"><strong>Pickup:</strong> ${escapeHtml(pickupAddress)}</div>
+          ${
+            vendorLocality
+              ? `<div class="muted text-xs" style="margin-top:4px;">Pickup area: ${escapeHtml(vendorLocality)}</div>`
+              : ""
+          }
+          <div class="muted text-xs" style="margin-top:4px;">Pickup GPS: ${escapeHtml(pickupCoords)}</div>
+          <div class="muted text-sm" style="margin-top:8px;"><strong>Dropoff:</strong> ${escapeHtml(address)}</div>
+          ${
+            deliveryLocality
+              ? `<div class="muted text-xs" style="margin-top:4px;">Dropoff area: ${escapeHtml(deliveryLocality)}</div>`
+              : ""
+          }
+          <div class="muted text-xs" style="margin-top:4px;">Dropoff GPS: ${escapeHtml(dropoffCoords)}</div>
+          <div class="muted text-xs" style="margin-top:6px;">Distance: ${escapeHtml(distanceLabel)}</div>
         </div>
         <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
           <div class="font-semibold" style="margin-bottom:8px;">Items</div>
@@ -470,7 +513,7 @@
           </div>
           <div style="text-align:right;">
             ${statusChip}
-            <button class="btn ghost small" data-open-assign style="margin-top:6px;">Change rider</button>
+            <div class="muted text-xs" style="margin-top:6px;">Rider locked to this order</div>
           </div>
         </div>
         <div class="muted text-sm" style="margin-top:8px;">
@@ -512,9 +555,16 @@
     const snapshot = order?.address_snapshot && typeof order.address_snapshot === "object"
       ? order.address_snapshot
       : {};
-    const lat = numberOrNull(snapshot.lat ?? snapshot.latitude ?? snapshot?.coords?.lat ?? snapshot?.location?.lat);
+    const lat = numberOrNull(
+      order?.delivery_latitude ??
+        snapshot.lat ??
+        snapshot.latitude ??
+        snapshot?.coords?.lat ??
+        snapshot?.location?.lat,
+    );
     const lng = numberOrNull(
-      snapshot.lng ??
+      order?.delivery_longitude ??
+        snapshot.lng ??
         snapshot.lon ??
         snapshot.longitude ??
         snapshot?.coords?.lng ??
@@ -524,6 +574,22 @@
     );
     if (lat === null || lng === null) return null;
     return { lat, lng };
+  }
+
+  function extractPickupPoint(order) {
+    const lat = numberOrNull(order?.pickup_latitude);
+    const lng = numberOrNull(order?.pickup_longitude);
+    if (lat === null || lng === null) return null;
+    return { lat, lng };
+  }
+
+  function orderRegionCity(order) {
+    const snapshot = order?.address_snapshot && typeof order.address_snapshot === "object"
+      ? order.address_snapshot
+      : {};
+    const region = String(order?.vendor_region || order?.selected_region || snapshot?.region || "").trim();
+    const city = String(order?.vendor_city || order?.selected_city || snapshot?.city || "").trim();
+    return { region, city };
   }
 
   function haversineKm(aLat, aLng, bLat, bLng) {
@@ -561,18 +627,34 @@
 
   async function openAssignRiderModal() {
     if (!currentOrderId) return;
+    if (currentDelivery?.rider_id && currentDelivery?.status !== "cancelled") {
+      showToast("This order already has an assigned rider.");
+      return;
+    }
     const rawBranch = currentOrder?.branch_id || getSelectedBranchId();
     const branchId = rawBranch && rawBranch !== "all" ? rawBranch : undefined;
+    const pickupPoint = extractPickupPoint(currentOrder);
+    const { region, city } = orderRegionCity(currentOrder);
     const cacheAgeMs = Date.now() - Number(ridersCache.__fetchedAt || 0);
     const staleCache = cacheAgeMs > 15000;
-    if (!ridersCache.length || ridersCache.__branchId !== (branchId || "all") || staleCache) {
-      const { data, error } = await fetchRiders({ activeOnly: true, branchId });
+    const cacheKey = `${branchId || "all"}|${region || "-"}|${city || "-"}|${pickupPoint?.lat ?? "-"}|${pickupPoint?.lng ?? "-"}`;
+    if (!ridersCache.length || ridersCache.__cacheKey !== cacheKey || staleCache) {
+      const { data, error } = await fetchRiders({
+        activeOnly: true,
+        availableOnly: true,
+        branchId,
+        region: region || null,
+        city: city || null,
+        nearbyTo: pickupPoint
+          ? { lat: pickupPoint.lat, lng: pickupPoint.lng, maxDistanceKm: 25 }
+          : null,
+      });
       if (error) {
         showToast(error.message);
         return;
       }
       ridersCache = data || [];
-      ridersCache.__branchId = branchId || "all";
+      ridersCache.__cacheKey = cacheKey;
       ridersCache.__fetchedAt = Date.now();
     }
     renderAssignableRiders(assignRiderSearch.value.trim());
@@ -581,10 +663,14 @@
 
   function renderAssignableRiders(filter = "") {
     const normalized = filter.toLowerCase();
+    const pickupPoint = extractPickupPoint(currentOrder);
     const destination = extractOrderDestination(currentOrder);
+    const target = pickupPoint || destination;
     const filtered = (ridersCache || []).filter((r) => {
       const haystack = `${r.name || ""} ${r.phone || ""} ${r.vehicle_type || ""} ${r.rider_status || ""}`.toLowerCase();
-      return haystack.includes(normalized);
+      if (!haystack.includes(normalized)) return false;
+      if (r.is_available === false) return false;
+      return true;
     });
 
     if (!filtered.length) {
@@ -597,10 +683,17 @@
         const riderLat = numberOrNull(r.last_lat);
         const riderLng = numberOrNull(r.last_lng);
         const distanceKm =
-          destination && riderLat !== null && riderLng !== null
-            ? haversineKm(destination.lat, destination.lng, riderLat, riderLng)
+          target && riderLat !== null && riderLng !== null
+            ? haversineKm(target.lat, target.lng, riderLat, riderLng)
             : null;
-        return { ...r, __distanceKm: distanceKm, __lat: riderLat, __lng: riderLng };
+        return {
+          ...r,
+          __distanceKm: Number.isFinite(Number(r.distance_km))
+            ? Number(r.distance_km)
+            : distanceKm,
+          __lat: riderLat,
+          __lng: riderLng,
+        };
       })
       .sort((a, b) => {
         const hasDistanceA = Number.isFinite(a.__distanceKm);
@@ -613,9 +706,9 @@
         return String(a.name || "").localeCompare(String(b.name || ""));
       });
 
-    const destinationNote = destination
-      ? `<div class="muted text-xs" style="margin-bottom:8px;">Sorted by nearest rider to this order location.</div>`
-      : `<div class="muted text-xs" style="margin-bottom:8px;">Order location is missing, so riders are sorted by status.</div>`;
+    const destinationNote = target
+      ? `<div class="muted text-xs" style="margin-bottom:8px;">Sorted by nearest rider to this restaurant pickup point.</div>`
+      : `<div class="muted text-xs" style="margin-bottom:8px;">Pickup location missing, riders are sorted by status and name.</div>`;
 
     assignRiderList.innerHTML = `${destinationNote}${ranked
       .map(
@@ -625,6 +718,7 @@
               <div class="font-semibold">${escapeHtml(r.name || "Rider")}</div>
               <div class="muted text-xs">${escapeHtml(r.phone || "No phone")}</div>
               <div class="muted text-xs">${escapeHtml(formatCoords(r.__lat, r.__lng))}</div>
+              <div class="muted text-xs">Active deliveries: ${escapeHtml(String(r.active_delivery_count || 0))}</div>
               ${
                 r.last_location_at
                   ? `<div class="muted text-xs">Updated ${escapeHtml(fmtDateTime(r.last_location_at))}</div>`
@@ -659,6 +753,10 @@
       }
       if (msg.toLowerCase().includes("non volatile") || msg.toLowerCase().includes("non-volatile")) {
         showToast("RPC volatility error. Run migration 0072_fix_rpc_volatility.sql.");
+        return;
+      }
+      if (msg.toLowerCase().includes("already has an assigned rider")) {
+        showToast("This order already has an assigned rider.");
         return;
       }
       showToast(error.message);

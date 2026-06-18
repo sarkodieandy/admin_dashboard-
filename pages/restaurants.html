@@ -105,6 +105,18 @@
                 <option value="suspended">Suspended</option>
               </select>
             </div>
+            <div style="width: 220px;">
+              <label class="label">Region</label>
+              <input id="regionFilterInput" class="input" placeholder="Filter by region" />
+            </div>
+            <div style="width: 220px;">
+              <label class="label">City</label>
+              <input id="cityFilterInput" class="input" placeholder="Filter by city" />
+            </div>
+            <div style="width: 220px;">
+              <label class="label">Area</label>
+              <input id="areaFilterInput" class="input" placeholder="Filter by area" />
+            </div>
           </div>
         </div>
 
@@ -279,6 +291,9 @@
 
     const searchInput = document.getElementById("searchInput");
     const statusSelect = document.getElementById("statusSelect");
+    const regionFilterInput = document.getElementById("regionFilterInput");
+    const cityFilterInput = document.getElementById("cityFilterInput");
+    const areaFilterInput = document.getElementById("areaFilterInput");
     const refreshBtn = document.getElementById("refreshBtn");
     const openCreateRestaurantBtn = document.getElementById("openCreateRestaurantBtn");
     const tbody = document.getElementById("restaurantsTbody");
@@ -300,6 +315,9 @@
     openCreateRestaurantBtn.addEventListener("click", () => openCreateRestaurantModal());
     searchInput.addEventListener("input", debounce(() => load(), 300));
     statusSelect.addEventListener("change", () => load());
+    regionFilterInput.addEventListener("input", debounce(() => load(), 250));
+    cityFilterInput.addEventListener("input", debounce(() => load(), 250));
+    areaFilterInput.addEventListener("input", debounce(() => load(), 250));
     document.getElementById("closeCreateRestaurantModal").addEventListener("click", () => closeCreateRestaurantModal());
     createRestaurantModal.addEventListener("click", (e) => {
       if (e.target === createRestaurantModal) closeCreateRestaurantModal();
@@ -597,6 +615,9 @@
 
       const status = statusSelect.value;
       const search = searchInput.value.trim();
+      const regionFilter = regionFilterInput.value.trim().toLowerCase();
+      const cityFilter = cityFilterInput.value.trim().toLowerCase();
+      const areaFilter = areaFilterInput.value.trim().toLowerCase();
 
       const res = await fetchRestaurants({ status, search, limit: 200, offset: 0 });
       if (res.error) {
@@ -607,7 +628,15 @@
         return;
       }
 
-      const rows = res.data || [];
+      const rows = (res.data || []).filter((row) => {
+        const rowRegion = String(row?.region || "").trim().toLowerCase();
+        const rowCity = String(row?.city || "").trim().toLowerCase();
+        const rowArea = String(row?.area || "").trim().toLowerCase();
+        if (regionFilter && !rowRegion.includes(regionFilter)) return false;
+        if (cityFilter && !rowCity.includes(cityFilter)) return false;
+        if (areaFilter && !rowArea.includes(areaFilter)) return false;
+        return true;
+      });
       if (!rows.length) {
         tbody.innerHTML = `<tr class="table-empty"><td colspan="11" class="muted">No restaurants found.</td></tr>`;
         return;
@@ -641,6 +670,11 @@
         const lat = r.latitude == null ? "" : String(r.latitude);
         const lng = r.longitude == null ? "" : String(r.longitude);
         const radiusKm = r.delivery_radius_km == null ? "" : String(r.delivery_radius_km);
+        const hasGps = lat.trim() && lng.trim();
+        const hasLocality = region.trim() || city.trim() || area.trim();
+        const locationWarning = hasGps && hasLocality
+          ? ""
+          : `<div class="muted text-xs" style="color:#b93815; grid-column:1/-1;">Location missing. This vendor will not appear correctly to customers.</div>`;
         const actions = `
           <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
             <button class="btn small ghost" data-action="link-owner" data-id="${r.id}" data-name="${escapeHtml(r.name || "")}">
@@ -664,6 +698,7 @@
             <input class="input" data-location-field="delivery_radius_km" data-id="${r.id}" type="number" min="0" step="0.1" placeholder="Radius km" value="${escapeHtml(radiusKm)}" style="height:30px;" />
             <input class="input" data-location-field="latitude" data-id="${r.id}" type="number" step="0.000001" placeholder="Latitude" value="${escapeHtml(lat)}" style="height:30px;" />
             <input class="input" data-location-field="longitude" data-id="${r.id}" type="number" step="0.000001" placeholder="Longitude" value="${escapeHtml(lng)}" style="height:30px;" />
+            ${locationWarning}
           </div>
         `;
 
