@@ -28,7 +28,9 @@ export const statusLabel = (s) => {
 
 export const deliveryStatusLabel = (s) => {
   const map = {
+    pending_acceptance: "Awaiting rider",
     assigned: "Assigned",
+    declined: "Declined",
     picked_up: "Picked up",
     en_route: "On the way",
     delivered: "Delivered",

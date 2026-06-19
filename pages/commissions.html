@@ -140,9 +140,9 @@
     async function populateRestaurants() {
       const res = await fetchRestaurants({ status: "active", limit: 500 });
       if (res.error) return;
-      restaurantSelect.innerHTML = `<option value=\"all\">All restaurants</option>` + (res.data || [])
-        .map((r) => `<option value=\"${r.id}\">${r.name}</option>`)
-        .join(\"\\n\");
+      restaurantSelect.innerHTML = '<option value="all">All restaurants</option>' + (res.data || [])
+        .map((r) => `<option value="${r.id}">${escapeHtml(r.name || r.slug || r.id)}</option>`)
+        .join("");
     }
 
     async function loadRestaurantOptions() {

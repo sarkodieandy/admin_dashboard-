@@ -10,9 +10,9 @@
   --space-10: 40px;
 
   /* radii */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
   /* typography */
   --font-base: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;

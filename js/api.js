@@ -5,7 +5,7 @@ const supabase = getClient();
 const ORDER_FIELDS =
   "id,status,total,subtotal,delivery_fee,discount,payment_method,payment_status,address_snapshot,created_at,user_id,branch_id,restaurant_id,pickup_address,pickup_latitude,pickup_longitude,delivery_latitude,delivery_longitude,delivery_distance_km,selected_region,selected_city,selected_area,vendor_region,vendor_city,vendor_area";
 const DELIVERY_WITH_RIDER =
-  "id,order_id,rider_id,status,assigned_at,picked_at,delivered_at,updated_at,rider:riders(id,name,phone,vehicle_type,is_active)";
+  "id,order_id,rider_id,status,assigned_at,picked_at,delivered_at,rider_accepted_at,updated_at,rider:riders(id,name,phone,vehicle_type,is_active)";
 const LEGACY_RESTAURANT_SLUG = "legacy-default";
 
 function excludeLegacyRestaurantRows(rows = []) {
@@ -468,7 +468,7 @@ export async function fetchRiders({
       .from("deliveries")
       .select("rider_id,status")
       .in("rider_id", riderIds)
-      .in("status", ["assigned", "picked_up", "en_route"]);
+      .in("status", ["pending_acceptance", "assigned", "picked_up", "en_route"]);
     if (activeDeliveriesRes.error) {
       console.warn("[W][riders] active_delivery_lookup_failed", { error: activeDeliveriesRes.error });
     } else {
@@ -999,6 +999,36 @@ export async function updatePromo(id, payload) {
   if (!isPlatformRolePublic(scope.role) && scope.branch_id) scoped.branch_id = scope.branch_id;
   if (!isPlatformRolePublic(scope.role) && scope.restaurant_id) scoped.restaurant_id = scope.restaurant_id;
   return scopeFilter(supabase.from("promos").update(scoped), { useBranch: true }).eq("id", id);
+}
+
+export async function fetchPlatformAds({ limit = 100 } = {}) {
+  return supabase
+    .from("platform_ads")
+    .select("id,title,subtitle,image_url,cta_label,action_url,placement,sort_order,starts_at,ends_at,is_active,created_at")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+}
+
+export async function insertPlatformAd(payload) {
+  const scope = getCurrentScope();
+  return supabase
+    .from("platform_ads")
+    .insert({
+      ...payload,
+      created_by: scope?.user_id || scope?.id || null,
+    })
+    .select("*")
+    .maybeSingle();
+}
+
+export async function updatePlatformAd(id, payload) {
+  return supabase
+    .from("platform_ads")
+    .update(payload)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
 }
 
 export async function fetchReviews({ limit = 200, branchId } = {}) {

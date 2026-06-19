@@ -503,6 +503,14 @@
     const statusChip = `<span class="tag info">${deliveryStatusLabel(delivery.status)}</span>`;
     const vehicle = rider.vehicle_type ? ` • ${escapeHtml(rider.vehicle_type)}` : "";
     const actions = renderDeliveryActionButtons(delivery);
+    const statusNote = delivery.status === "pending_acceptance"
+      ? "Waiting for rider to accept or reject in the rider app"
+      : delivery.status === "declined"
+        ? "Rider declined this request. Assign another available rider."
+        : delivery.rider_accepted_at
+          ? `Accepted ${fmtDateTime(delivery.rider_accepted_at)}`
+          : "Rider locked to this order";
+    const canAssignAgain = ["declined", "cancelled"].includes(String(delivery.status || ""));
 
     return `
       <div class="card" style="box-shadow:none; border:1px solid var(--color-border);">
@@ -513,7 +521,7 @@
           </div>
           <div style="text-align:right;">
             ${statusChip}
-            <div class="muted text-xs" style="margin-top:6px;">Rider locked to this order</div>
+            <div class="muted text-xs" style="margin-top:6px;">${escapeHtml(statusNote)}</div>
           </div>
         </div>
         <div class="muted text-sm" style="margin-top:8px;">
@@ -523,7 +531,13 @@
               : "Phone not available"
           }
         </div>
-        ${actions ? `<div class="flex" style="gap:8px; flex-wrap:wrap; margin-top:12px;">${actions}</div>` : ""}
+        ${
+          canAssignAgain
+            ? `<div class="flex" style="gap:8px; flex-wrap:wrap; margin-top:12px;"><button class="btn primary" data-open-assign>Assign another rider</button></div>`
+            : actions
+              ? `<div class="flex" style="gap:8px; flex-wrap:wrap; margin-top:12px;">${actions}</div>`
+              : ""
+        }
       </div>
     `;
   }
@@ -627,27 +641,25 @@
 
   async function openAssignRiderModal() {
     if (!currentOrderId) return;
-    if (currentDelivery?.rider_id && currentDelivery?.status !== "cancelled") {
+    if (
+      currentDelivery?.rider_id &&
+      !["cancelled", "declined"].includes(String(currentDelivery?.status || ""))
+    ) {
       showToast("This order already has an assigned rider.");
       return;
     }
     const rawBranch = currentOrder?.branch_id || getSelectedBranchId();
     const branchId = rawBranch && rawBranch !== "all" ? rawBranch : undefined;
     const pickupPoint = extractPickupPoint(currentOrder);
-    const { region, city } = orderRegionCity(currentOrder);
     const cacheAgeMs = Date.now() - Number(ridersCache.__fetchedAt || 0);
     const staleCache = cacheAgeMs > 15000;
-    const cacheKey = `${branchId || "all"}|${region || "-"}|${city || "-"}|${pickupPoint?.lat ?? "-"}|${pickupPoint?.lng ?? "-"}`;
+    const cacheKey = `${branchId || "all"}|${pickupPoint?.lat ?? "-"}|${pickupPoint?.lng ?? "-"}`;
     if (!ridersCache.length || ridersCache.__cacheKey !== cacheKey || staleCache) {
       const { data, error } = await fetchRiders({
         activeOnly: true,
         availableOnly: true,
         branchId,
-        region: region || null,
-        city: city || null,
-        nearbyTo: pickupPoint
-          ? { lat: pickupPoint.lat, lng: pickupPoint.lng, maxDistanceKm: 25 }
-          : null,
+        nearbyTo: pickupPoint ? { lat: pickupPoint.lat, lng: pickupPoint.lng } : null,
       });
       if (error) {
         showToast(error.message);
@@ -742,7 +754,7 @@
     const { error } = await upsertDelivery({
       order_id: currentOrderId,
       rider_id: riderId,
-      status: "assigned",
+      status: "pending_acceptance",
       assigned_at: new Date().toISOString(),
     });
     if (error) {
@@ -762,7 +774,7 @@
       showToast(error.message);
       return;
     }
-    showToast("Rider assigned");
+    showToast("Delivery request sent to rider");
     loadDispatch();
     loadOrders();
     openDrawer(currentOrderId);

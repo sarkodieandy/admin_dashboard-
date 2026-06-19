@@ -25,10 +25,31 @@
         <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
           <button class="btn ghost" id="notifBtn" title="Notifications" aria-label="Notifications"></button>
           <select id="branchSwitcherSelect" class="input" style="height:38px; width:180px; padding-right:32px;"></select>
+          <button class="btn primary" id="newAd" style="display:none;">New app ad</button>
           <button class="btn primary" id="newPromo">New promo</button>
         </div>
 	      </div>
 	      <div class="page">
+          <section id="platformAdsSection" style="display:none; margin-bottom: var(--space-4);">
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:12px;">
+              <div>
+                <div class="font-bold">Customer app ads</div>
+                <div class="muted text-sm">Banners shown at the top of the customer home screen.</div>
+              </div>
+            </div>
+            <div class="card" style="padding:0;">
+              <div class="table-wrap">
+                <table class="table" id="adTable">
+                  <thead>
+                    <tr>
+                      <th>Preview</th><th>Title</th><th>CTA</th><th>Dates</th><th>Order</th><th>Active</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
 	        <div class="card" style="padding:0;">
 	          <div class="table-wrap">
 	            <table class="table" id="promoTable">
@@ -83,6 +104,55 @@
         <button class="btn primary" type="submit">Save</button>
       </form>
     </div>
+	  </div>
+
+  <div id="adModal" class="modal-backdrop">
+    <div class="modal">
+      <header>
+        <div>
+          <div class="font-bold" id="adModalTitle">New app ad</div>
+          <div class="muted text-sm">Upload a wide image for the customer home screen.</div>
+        </div>
+        <button class="btn ghost" id="closeAdModal">✕</button>
+      </header>
+      <form id="adForm">
+        <label class="label">Title</label>
+        <input class="input" id="adTitle" placeholder="Weekend deals are live" required />
+        <label class="label">Subtitle</label>
+        <textarea class="input" id="adSubtitle" rows="2" placeholder="Short message shown under the title"></textarea>
+        <label class="label">Image upload</label>
+        <input class="input" id="adImageFile" type="file" accept="image/*" />
+        <div class="muted text-sm" style="margin:6px 0 10px;">Recommended: 1200 × 520 or wider.</div>
+        <label class="label">Image URL</label>
+        <input class="input" id="adImageUrl" placeholder="https://..." required />
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+          <div>
+            <label class="label">Button label</label>
+            <input class="input" id="adCta" placeholder="Explore" />
+          </div>
+          <div>
+            <label class="label">App route</label>
+            <input class="input" id="adActionUrl" placeholder="/app/search" />
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 120px; gap:10px;">
+          <div>
+            <label class="label">Starts</label>
+            <input class="input" id="adStartsAt" type="date" />
+          </div>
+          <div>
+            <label class="label">Ends</label>
+            <input class="input" id="adEndsAt" type="date" />
+          </div>
+          <div>
+            <label class="label">Sort</label>
+            <input class="input" id="adSortOrder" type="number" step="1" value="0" />
+          </div>
+        </div>
+        <label class="chip-btn active" id="adIsActive">Active</label>
+        <button class="btn primary" id="saveAdBtn" type="submit">Save ad</button>
+      </form>
+    </div>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -90,8 +160,9 @@
   <script type="module">
     import { renderSidebar, showToast, mountThemeToggle, mountStatusBanner } from "../js/ui.js";
 	    import { requireAuth, getClient } from "../js/auth.js";
-	    import { fetchPromos, insertPromo, updatePromo } from "../js/api.js";
+	    import { fetchPlatformAds, fetchPromos, insertPlatformAd, insertPromo, updatePlatformAd, updatePromo } from "../js/api.js";
 	    import { fmtMoney } from "../js/utils.js";
+      import { platformAdImageUrl, uploadPlatformAdImageFile } from "../js/storage.js";
 	    import { mountNotifications } from "../js/notifications_ui.js";
 	    import { initBranchState, registerBranchSwitcher, onBranchChange, getSelectedBranchId, getBranches, getBranchLabel } from "../js/branches.js";
 
@@ -108,22 +179,40 @@
 	    });
 
 	    const tbody = document.querySelector("#promoTable tbody");
+      const adTbody = document.querySelector("#adTable tbody");
 	    const modal = document.getElementById("modal");
+      const adModal = document.getElementById("adModal");
 	    const form = document.getElementById("promoForm");
+      const adForm = document.getElementById("adForm");
 	    const activeToggle = document.getElementById("isActive");
+      const adActiveToggle = document.getElementById("adIsActive");
 	    const branchRow = document.getElementById("branchRow");
 	    const promoBranch = document.getElementById("promoBranch");
 	    let editingId = null;
+      let editingAdId = null;
 	    let active = true;
+      let adActive = true;
 		    const isSuper = ["super_admin", "platform_admin", "restaurant_owner"].includes(profile.role);
+      const canManagePlatformAds = ["platform_admin", "super_admin"].includes(profile.role);
 
+      document.getElementById("platformAdsSection").style.display = canManagePlatformAds ? "" : "none";
+      document.getElementById("newAd").style.display = canManagePlatformAds ? "" : "none";
+
+    document.getElementById("newAd").addEventListener("click", () => openAdModal());
     document.getElementById("newPromo").addEventListener("click", () => openModal());
     document.getElementById("closeModal").addEventListener("click", closeModal);
+    document.getElementById("closeAdModal").addEventListener("click", closeAdModal);
     modal.addEventListener("click", (e) => e.target === modal && closeModal());
+    adModal.addEventListener("click", (e) => e.target === adModal && closeAdModal());
     activeToggle.addEventListener("click", () => {
       active = !active;
       activeToggle.classList.toggle("active", active);
       activeToggle.textContent = active ? "Active" : "Inactive";
+    });
+    adActiveToggle.addEventListener("click", () => {
+      adActive = !adActive;
+      adActiveToggle.classList.toggle("active", adActive);
+      adActiveToggle.textContent = adActive ? "Active" : "Inactive";
     });
 
 	    form.addEventListener("submit", async (e) => {
@@ -147,9 +236,48 @@
 	      load();
 	    });
 
+      adForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById("saveAdBtn");
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving…";
+        try {
+          const file = document.getElementById("adImageFile").files?.[0] || null;
+          let imageUrl = document.getElementById("adImageUrl").value.trim();
+          if (file) {
+            const upload = await uploadPlatformAdImageFile({ file });
+            if (upload.error) return showToast(upload.error.message);
+            imageUrl = upload.data.publicUrl;
+            document.getElementById("adImageUrl").value = imageUrl;
+          }
+          if (!imageUrl) return showToast("Add an ad image.");
+          const payload = {
+            title: document.getElementById("adTitle").value.trim(),
+            subtitle: document.getElementById("adSubtitle").value.trim() || null,
+            image_url: imageUrl,
+            cta_label: document.getElementById("adCta").value.trim() || null,
+            action_url: document.getElementById("adActionUrl").value.trim() || null,
+            placement: "home",
+            sort_order: Number(document.getElementById("adSortOrder").value || 0),
+            starts_at: document.getElementById("adStartsAt").value ? new Date(document.getElementById("adStartsAt").value).toISOString() : null,
+            ends_at: document.getElementById("adEndsAt").value ? new Date(document.getElementById("adEndsAt").value).toISOString() : null,
+            is_active: adActive,
+          };
+          const res = editingAdId ? await updatePlatformAd(editingAdId, payload) : await insertPlatformAd(payload);
+          if (res.error) return showToast(res.error.message);
+          showToast(editingAdId ? "Ad updated" : "Ad created");
+          closeAdModal();
+          await loadPlatformAds();
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save ad";
+        }
+      });
+
 	    load();
 
 	    async function load() {
+        if (canManagePlatformAds) await loadPlatformAds();
 	      tbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
 	      const branchId = getSelectedBranchId();
 	      const { data, error } = await fetchPromos({ branchId });
@@ -172,6 +300,56 @@
 	        btn.addEventListener("click", () => openModal(promos.find((p) => p.id === btn.dataset.edit)))
 	      );
 	    }
+
+      async function loadPlatformAds() {
+        adTbody.innerHTML = `<tr><td colspan="7"><div class="skeleton" style="height:32px;"></div></td></tr>`;
+        const { data, error } = await fetchPlatformAds();
+        if (error) {
+          adTbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${error.message}</td></tr>`;
+          return;
+        }
+        const ads = data || [];
+        if (!ads.length) {
+          adTbody.innerHTML = `<tr><td colspan="7" class="muted">No customer app ads yet</td></tr>`;
+          return;
+        }
+        adTbody.innerHTML = ads.map((ad) => {
+          const image = platformAdImageUrl(ad.image_url);
+          const dates = `${ad.starts_at ? new Date(ad.starts_at).toLocaleDateString() : "Now"} → ${ad.ends_at ? new Date(ad.ends_at).toLocaleDateString() : "Always"}`;
+          return `
+            <tr>
+              <td><img src="${image}" alt="" style="width:84px; height:46px; object-fit:cover; border:1px solid var(--color-border);" /></td>
+              <td><strong>${ad.title}</strong><div class="muted text-sm">${ad.subtitle || ""}</div></td>
+              <td>${ad.cta_label || "—"}</td>
+              <td class="text-sm">${dates}</td>
+              <td>${Number(ad.sort_order || 0)}</td>
+              <td><span class="tag ${ad.is_active ? "success" : ""}">${ad.is_active ? "Active" : "Off"}</span></td>
+              <td><button class="btn ghost" data-edit-ad="${ad.id}">Edit</button></td>
+            </tr>
+          `;
+        }).join("");
+        adTbody.querySelectorAll("[data-edit-ad]").forEach((btn) =>
+          btn.addEventListener("click", () => openAdModal(ads.find((ad) => ad.id === btn.dataset.editAd)))
+        );
+      }
+
+      function openAdModal(ad) {
+        editingAdId = ad?.id || null;
+        document.getElementById("adModalTitle").textContent = editingAdId ? "Edit app ad" : "New app ad";
+        document.getElementById("adTitle").value = ad?.title || "";
+        document.getElementById("adSubtitle").value = ad?.subtitle || "";
+        document.getElementById("adImageUrl").value = ad?.image_url || "";
+        document.getElementById("adImageFile").value = "";
+        document.getElementById("adCta").value = ad?.cta_label || "";
+        document.getElementById("adActionUrl").value = ad?.action_url || "/app/search";
+        document.getElementById("adSortOrder").value = ad?.sort_order ?? 0;
+        document.getElementById("adStartsAt").value = ad?.starts_at ? new Date(ad.starts_at).toISOString().slice(0, 10) : "";
+        document.getElementById("adEndsAt").value = ad?.ends_at ? new Date(ad.ends_at).toISOString().slice(0, 10) : "";
+        adActive = ad?.is_active ?? true;
+        adActiveToggle.classList.toggle("active", adActive);
+        adActiveToggle.textContent = adActive ? "Active" : "Inactive";
+        adModal.classList.add("show");
+      }
 
 	    function openModal(promo) {
 	      editingId = promo?.id || null;
@@ -202,6 +380,11 @@
     function closeModal() {
       modal.classList.remove("show");
       editingId = null;
+    }
+
+    function closeAdModal() {
+      adModal.classList.remove("show");
+      editingAdId = null;
     }
   </script>
 </body>

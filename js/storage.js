@@ -4,6 +4,7 @@ const supabase = getClient();
 
 export const MENU_IMAGES_BUCKET = "menu-images";
 export const RESTAURANT_LOGOS_BUCKET = "restaurant-logos";
+export const PLATFORM_ADS_BUCKET = "platform-ads";
 
 function normalizeRemoteUrl(value) {
   let p = String(value || "").trim();
@@ -75,6 +76,17 @@ export function menuImageUrl(pathOrUrl) {
 export function restaurantLogoUrl(pathOrUrl) {
   const remoteUrl = normalizeRemoteUrl(pathOrUrl);
   return remoteUrl || "";
+}
+
+export function platformAdImageUrl(pathOrUrl) {
+  const remoteUrl = normalizeRemoteUrl(pathOrUrl);
+  if (remoteUrl) return remoteUrl;
+  const path = String(pathOrUrl || "").trim();
+  if (!path) return "";
+  const normalized = path.startsWith(`${PLATFORM_ADS_BUCKET}/`)
+    ? path.substring(`${PLATFORM_ADS_BUCKET}/`.length)
+    : path;
+  return supabase.storage.from(PLATFORM_ADS_BUCKET).getPublicUrl(normalized).data.publicUrl;
 }
 
 function sanitizeFilename(name) {
@@ -324,6 +336,36 @@ export async function uploadMenuImageFile({ file, branchId, itemId }) {
       ...fnRes.error,
       message,
     },
+  };
+}
+
+export async function uploadPlatformAdImageFile({ file }) {
+  if (!file) throw new Error("No file selected");
+  if (!String(file.type || "").startsWith("image/")) {
+    return { data: null, error: { message: "Select a valid image file." } };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { data: null, error: { message: "Use an image under 10MB." } };
+  }
+
+  const safeName = sanitizeFilename(file.name || "platform-ad");
+  const path = `home/${Date.now()}-${safeName}`;
+  const res = await supabase.storage
+    .from(PLATFORM_ADS_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "image/jpeg",
+    });
+  if (res.error) return res;
+
+  return {
+    data: {
+      path,
+      publicUrl: supabase.storage.from(PLATFORM_ADS_BUCKET).getPublicUrl(path)
+        .data.publicUrl,
+    },
+    error: null,
   };
 }
 
